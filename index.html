@@ -32,6 +32,30 @@
     </div>
   </div>
 
+  <div id="mp-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="mp-title">
+    <div class="fb-card">
+      <div class="fb-title" id="mp-title">Multiplayer</div>
+
+      <div id="mp-stage-choose">
+        <button id="mp-host" class="mp-btn">Host a run</button>
+        <button id="mp-join" class="mp-btn">Join with code</button>
+      </div>
+
+      <div id="mp-stage-join" class="hidden">
+        <input id="mp-code-input" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
+        <button id="mp-join-go" class="mp-btn">Join</button>
+      </div>
+
+      <div id="mp-stage-lobby" class="hidden">
+        <div class="mp-code">CODE: <span id="mp-code-display"></span></div>
+        <div id="mp-status">Waiting for friend...</div>
+        <button id="mp-ready" class="mp-btn" disabled>I'm ready</button>
+      </div>
+
+      <button id="mp-cancel" class="mp-btn mp-btn-secondary">Cancel</button>
+    </div>
+  </div>
+
   <div id="touch-zones" aria-hidden="true">
     <div class="tzone" data-dir="left"></div>
     <div class="tzone" data-dir="right"></div>

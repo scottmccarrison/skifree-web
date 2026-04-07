@@ -145,6 +145,7 @@ export function render(ctx, viewport, game) {
       legend: true,
       restart: true,
       restartLabel: 'START',
+      multiplayer: true,
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, game, {
@@ -183,7 +184,7 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend, restart, restartLabel } = panel;
+  const { title, hint, lines, legend, restart, restartLabel, multiplayer } = panel;
   const restartHeight = restart ? 44 : 0;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
@@ -373,6 +374,31 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
       x: bx, y: by, w: btnW, h: btnH,
       action: 'restart', data: null,
     });
+
+    if (multiplayer) {
+      const mpW = btnW;
+      const mpH = 28;
+      const mpX = cx - mpW / 2;
+      const mpY = by - mpH - 8;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(mpX, mpY, mpW, mpH, 6);
+      else ctx.rect(mpX, mpY, mpW, mpH);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('MULTIPLAYER', cx, mpY + mpH / 2 + 1);
+      ctx.textBaseline = 'alphabetic';
+      hitRegions.push({
+        x: mpX, y: mpY, w: mpW, h: mpH,
+        action: 'multiplayer', data: null,
+      });
+    }
   }
 
 }
