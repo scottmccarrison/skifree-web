@@ -6,8 +6,9 @@ export function createPlayer() {
     y: 0,             // vertical, increases as you ski down
     state: 'straight',
     crashTimer: 0,    // seconds remaining of crash recovery
-    width: 18,
-    height: 28,
+    // Tight hit box centered on the skis' contact patch (not the whole body),
+    // expressed as offsets from (x, y) and full width/height.
+    hit: { dx: 0, dy: 8, w: 14, h: 10 },
   };
 }
 

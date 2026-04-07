@@ -3,12 +3,20 @@
 
 const CHUNK = 200; // world units per chunk side
 
+// Each type has a tight `hit` box centered at (sprite center + dx, dy).
+// These are intentionally smaller than the visible sprite so collisions feel
+// fair - you only crash when you actually hit the trunk/rock/etc.
 const TYPES = [
-  { kind: 'treeLarge', w: 36, h: 40, weight: 3, deadly: true },
-  { kind: 'treeSmall', w: 22, h: 24, weight: 4, deadly: true },
-  { kind: 'rock',      w: 22, h: 18, weight: 2, deadly: true },
-  { kind: 'stump',     w: 18, h: 10, weight: 2, deadly: true },
-  { kind: 'mogul',     w: 28, h: 12, weight: 5, deadly: false },
+  { kind: 'treeLarge', weight: 3, deadly: true,
+    hit: { dx: 0, dy: 14, w: 10, h: 10 } },   // trunk + low foliage
+  { kind: 'treeSmall', weight: 4, deadly: true,
+    hit: { dx: 0, dy: 8,  w: 8,  h: 8  } },   // small trunk
+  { kind: 'rock',      weight: 2, deadly: true,
+    hit: { dx: 0, dy: 0,  w: 18, h: 12 } },
+  { kind: 'stump',     weight: 2, deadly: true,
+    hit: { dx: 0, dy: 0,  w: 14, h: 8  } },
+  { kind: 'mogul',     weight: 5, deadly: false,
+    hit: { dx: 0, dy: 0,  w: 22, h: 8  } },
 ];
 
 const TOTAL_WEIGHT = TYPES.reduce((s, t) => s + t.weight, 0);
@@ -91,16 +99,18 @@ function spawnChunk(world, cx, cy, difficulty) {
 }
 
 export function checkCollisions(world, player) {
-  const px0 = player.x - player.width / 2;
-  const px1 = player.x + player.width / 2;
-  const py0 = player.y;
-  const py1 = player.y + player.height;
+  const ph = player.hit;
+  const pcx = player.x + ph.dx;
+  const pcy = player.y + ph.dy;
+  const px0 = pcx - ph.w / 2, px1 = pcx + ph.w / 2;
+  const py0 = pcy - ph.h / 2, py1 = pcy + ph.h / 2;
 
   for (const o of world.obstacles) {
-    const ox0 = o.x - o.type.w / 2;
-    const ox1 = o.x + o.type.w / 2;
-    const oy0 = o.y - o.type.h / 2;
-    const oy1 = o.y + o.type.h / 2;
+    const oh = o.type.hit;
+    const ocx = o.x + oh.dx;
+    const ocy = o.y + oh.dy;
+    const ox0 = ocx - oh.w / 2, ox1 = ocx + oh.w / 2;
+    const oy0 = ocy - oh.h / 2, oy1 = ocy + oh.h / 2;
     if (px0 < ox1 && px1 > ox0 && py0 < oy1 && py1 > oy0) {
       return o;
     }
