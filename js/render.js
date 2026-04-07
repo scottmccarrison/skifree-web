@@ -2,6 +2,10 @@ import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
   drawPlayer, drawYeti, drawSquirrel,
 } from './sprites.js';
+
+// Legend wrapper: squirrel sprite is offset upward in its own art so it
+// reads at the same baseline as the other obstacles in the legend grid.
+function drawSquirrelLegend(ctx) { drawSquirrel(ctx, 1); }
 import { getStoredName } from './leaderboard.js';
 import { colorForIndex } from './colors.js';
 
@@ -36,12 +40,13 @@ function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha) {
 }
 
 const LEGEND = [
-  { draw: drawTreeLarge, label: 'tree - CRASH' },
-  { draw: drawRock,      label: 'rock - CRASH' },
-  { draw: drawStump,     label: 'stump - CRASH' },
-  { draw: drawJump,      label: 'log - JUMP (boost)' },
-  { draw: drawMogul,     label: 'mogul - HOP (bump)' },
-  { draw: drawYeti,      label: 'yeti - RUN!' },
+  { draw: drawTreeLarge,     label: 'tree - CRASH' },
+  { draw: drawRock,          label: 'rock - CRASH' },
+  { draw: drawStump,         label: 'stump - CRASH' },
+  { draw: drawSquirrelLegend, label: 'squirrel - CRASH' },
+  { draw: drawJump,          label: 'log - JUMP (boost)' },
+  { draw: drawMogul,         label: 'mogul - HOP (bump)' },
+  { draw: drawYeti,          label: 'yeti - RUN!' },
 ];
 
 const SPRITE_FNS = {
