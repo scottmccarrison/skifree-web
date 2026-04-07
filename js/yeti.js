@@ -43,9 +43,15 @@ export function updateYeti(yeti, player, dt, difficulty = 1, speedMult = 1) {
   // weaving around trees lets the yeti close the gap. Difficulty adds a small
   // bonus so the chase tightens later in the run.
   // Scale by the *target's* current speedMult so the yeti tracks the player
-  // it's actually chasing - in MP that's the slowest alive player. Without
-  // this the yeti gets left in the dust as the world speeds up.
-  const speed = (BASE_CHASE_SPEED + difficulty * 18) * speedMult;
+  // it's actually chasing - in MP that's the slowest alive player. Strictly
+  // proportional: base speed only, no difficulty stacking. Player straight
+  // = 220*speedMult; yeti base = 200*speedMult; gap stays a clean ~20 units
+  // after speedMult so going straight always escapes and weavers pay.
+  // (Difficulty is intentionally unused now - it was double-scaling and made
+  // the yeti faster than the player past ~60s. The flyby mechanic still
+  // keeps the threat felt visually.)
+  const speed = BASE_CHASE_SPEED * speedMult;
+  void difficulty;
   const dx = player.x - yeti.x;
   const dy = player.y - yeti.y;
   const dist = Math.hypot(dx, dy) || 1;
