@@ -145,14 +145,12 @@ export function render(ctx, viewport, game) {
       legend: true,
       restart: true,
       restartLabel: 'START',
-      gift: true,
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, game, {
       title: 'GAME OVER',
       hint: game.hint,
       lines: [`${Math.floor(score)} m`],
-      gift: true,
       restart: true,
     });
   }
@@ -185,7 +183,7 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend, gift, restart, restartLabel } = panel;
+  const { title, hint, lines, legend, restart, restartLabel } = panel;
   const restartHeight = restart ? 44 : 0;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
@@ -377,16 +375,6 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     });
   }
 
-  // Gift icon: bottom-right corner of the panel.
-  if (gift) {
-    const gx = cx + w/2 - 22;
-    const gy = cy + h/2 - 22;
-    drawGiftIcon(ctx, gx, gy);
-    hitRegions.push({
-      x: gx - 18, y: gy - 18, w: 36, h: 36,
-      action: 'openChangelog', data: null,
-    });
-  }
 }
 
 function drawGiftIcon(ctx, x, y) {
