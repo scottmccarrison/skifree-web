@@ -134,11 +134,21 @@ export function updateGame(game, input, viewport, dt) {
     }
 
     if (game.mode !== 'mp' || game.isHost) {
-      const eaten = updateYeti(game.yeti, game.player, dt, difficulty);
-      if (eaten && !game.spectating) {
+      // Host (or solo): yeti chases slowest alive player
+      const target = (game.mode === 'mp')
+        ? (pickSlowestAlive(game) || game.player)
+        : game.player;
+      // updateYeti only reads target.x/target.y, but pass a safe shape.
+      const targetForYeti = (target === game.player)
+        ? game.player
+        : { x: target.x, y: target.y };
+      const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty);
+      if (eaten && !game.spectating && target === game.player) {
         endRun(game);
         return;
       }
+      // If the yeti caught a remote, that remote's client detects it via
+      // its own checkYetiCollision against the broadcast yeti position.
     } else {
       // Non-host MP: yeti position is driven by network messages.
       // Still run an identical collision check locally so deaths are responsive.
@@ -194,11 +204,46 @@ export function updateGame(game, input, viewport, dt) {
   }
 }
 
+// Returns the alive player with the LOWEST y (slowest = least progress).
+// Considers local game.player and all alive remotes.
+// Returns null if everyone is dead.
+export function pickSlowestAlive(game) {
+  let slowest = null;
+  if (!game.spectating && game.player.state !== 'crashed') {
+    slowest = game.player;
+  }
+  if (game.remotes) {
+    for (const r of game.remotes.values()) {
+      if (!r.alive) continue;
+      if (!slowest || r.y < slowest.y) slowest = r;
+    }
+  }
+  return slowest;
+}
+
+// Builds the cycle order: all remotes (id order) + local player at the end.
+// Includes crashed players per spec.
+export function getSpectateCycle(game) {
+  const order = [];
+  if (game.remotes) {
+    const sorted = Array.from(game.remotes.values()).sort((a, b) => a.id - b.id);
+    for (const r of sorted) order.push(r);
+  }
+  order.push(game.player);
+  return order;
+}
+
+export function advanceSpectateCycle(game) {
+  const cycle = getSpectateCycle(game);
+  if (cycle.length === 0) return;
+  game.spectateCycleIdx = (game.spectateCycleIdx + 1) % cycle.length;
+}
+
 export function pickSpectateTarget(game) {
-  if (!game.remotes || game.remotes.size === 0) return game.player;
-  for (const r of game.remotes.values()) { if (r.alive) return r; }
-  for (const r of game.remotes.values()) return r;
-  return game.player;
+  const cycle = getSpectateCycle(game);
+  if (cycle.length === 0) return game.player;
+  const idx = ((game.spectateCycleIdx % cycle.length) + cycle.length) % cycle.length;
+  return cycle[idx];
 }
 
 function resetMpState(game) {
@@ -261,6 +306,13 @@ function endRun(game) {
     for (const r of game.remotes.values()) { if (r.alive) { anyAlive = true; break; } }
     if (anyAlive) {
       game.spectating = true;
+      // Auto-target yeti's prey (slowest alive) on first activation.
+      const slowest = pickSlowestAlive(game);
+      if (slowest && slowest !== game.player) {
+        const cycle = getSpectateCycle(game);
+        const idx = cycle.indexOf(slowest);
+        if (idx >= 0) game.spectateCycleIdx = idx;
+      }
       return;
     }
   }
