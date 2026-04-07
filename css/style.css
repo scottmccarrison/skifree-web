@@ -244,6 +244,13 @@ html, body {
   margin-left: 4px;
   font-weight: normal;
 }
+#mp-modal .mp-row .mp-score {
+  flex: 0 0 auto;
+  font-family: monospace;
+  font-size: 13px;
+  opacity: 0.85;
+  margin-right: 4px;
+}
 #mp-modal .mp-row .mp-ready-icon {
   flex: 0 0 auto;
   font-size: 16px;
