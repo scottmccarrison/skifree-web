@@ -9,8 +9,8 @@
 
 const SPAWN_AFTER_SCORE = 300;       // meters before any critter appears
 const BASE_SPEED = 110;              // horizontal world units / second
-const MIN_INTERVAL = 4.0;            // seconds between spawns (early)
-const MAX_INTERVAL = 8.0;
+const MIN_INTERVAL = 8.0;            // seconds between spawns (early)
+const MAX_INTERVAL = 16.0;
 const HITBOX_W = 14;
 const HITBOX_H = 10;
 
