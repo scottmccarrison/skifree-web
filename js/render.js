@@ -29,22 +29,50 @@ export function render(ctx, viewport, game) {
   hitRegions.length = 0;
   const { player, world, yeti, state, score, highScore, deathCount } = game;
 
-  // Stage progression: every 1000m the snow gets darker. After stage 5, the
-  // background is black and we invert the whole scene for a "night mode" feel.
-  const stage = Math.floor(score / 1000);
+  // Progression layers: every 1000m unlocks a new visual element so the
+  // player can feel how far they've gone without watching the score.
+  // Bands cycle every 6000m so the visual journey continues forever.
+  const bandScore = score % 6000;
+  const stage = Math.floor(bandScore / 1000);
+  const cycle = Math.floor(score / 6000);
   const inverted = stage >= 5;
+
   let bg;
   if (inverted) {
-    // White here - the difference-with-white pass below flips it (and the
-    // sprites) to black-with-inverted-colors.
     bg = '#ffffff';
+  } else if (stage >= 4) {
+    // Aurora tint (purple/teal wash) at 4-5k.
+    bg = `rgb(180, 200, 230)`;
   } else {
-    // 244 -> ~120 across 5 steps.
-    const v = Math.max(120, 244 - stage * 25);
+    // 244 -> 150 across 4 steps.
+    const v = Math.max(150, 244 - stage * 24);
     bg = `rgb(${v}, ${v + 4}, ${v + 8})`;
   }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
+
+  // Aurora streaks (stage 4).
+  if (stage === 4) {
+    const t = (game.elapsed || 0) * 0.6;
+    for (let i = 0; i < 3; i++) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      const grad = ctx.createLinearGradient(0, 0, viewport.w, 0);
+      grad.addColorStop(0, '#7be6c4');
+      grad.addColorStop(0.5, '#a98cf0');
+      grad.addColorStop(1, '#7be6c4');
+      ctx.fillStyle = grad;
+      const yy = 40 + i * 50 + Math.sin(t + i) * 10;
+      ctx.fillRect(0, yy, viewport.w, 12);
+      ctx.restore();
+    }
+  }
+
+  // Drifting snowflakes (stage 1+).
+  if (state === 'playing' && stage >= 1) {
+    const flakeCount = Math.min(40, 8 + stage * 8);
+    drawSnowflakes(ctx, viewport, game.elapsed || 0, flakeCount);
+  }
 
   // Camera: player drawn at ~1/3 from top, x centered.
   const camX = player.x - viewport.w / 2;
@@ -122,6 +150,25 @@ export function render(ctx, viewport, game) {
       lines: [`${Math.floor(score)} m`, '', game.controlHint],
     });
   }
+}
+
+function drawSnowflakes(ctx, viewport, t, count) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  for (let i = 0; i < count; i++) {
+    // Deterministic per-flake offsets so they don't strobe.
+    const seed = i * 12.9898;
+    const sx = ((Math.sin(seed) * 43758) % 1 + 1) % 1;
+    const sy = ((Math.sin(seed + 1.7) * 43758) % 1 + 1) % 1;
+    const speed = 20 + ((i * 7) % 30);
+    const x = sx * viewport.w + Math.sin(t * 0.5 + i) * 8;
+    const y = (sy * viewport.h + t * speed) % viewport.h;
+    const r = 1.2 + ((i * 3) % 3) * 0.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function formatResetIn(ms) {

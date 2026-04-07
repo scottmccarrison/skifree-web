@@ -16,6 +16,26 @@ export function drawTreeLarge(ctx) {
   ctx.fill();
   ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-2, 14, 4, 6);
+  // Christmas lights: tiny dots in alternating colors.
+  const lights = [
+    { x: -10, y: -2,  c: '#ff3838' },
+    { x:  8,  y: -6,  c: '#ffd400' },
+    { x: -4,  y: -14, c: '#3aa0ff' },
+    { x:  10, y:  8,  c: '#39e08a' },
+    { x: -12, y: 10,  c: '#ffd400' },
+    { x:  4,  y: 4,   c: '#ff3838' },
+  ];
+  for (const l of lights) {
+    ctx.fillStyle = l.c;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Star on top.
+  ctx.fillStyle = '#ffd400';
+  ctx.beginPath();
+  ctx.arc(0, -23, 2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 export function drawTreeSmall(ctx) {
@@ -28,6 +48,13 @@ export function drawTreeSmall(ctx) {
   ctx.fill();
   ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-1.5, 8, 3, 4);
+  // A couple of lights.
+  ctx.fillStyle = '#ff3838';
+  ctx.beginPath(); ctx.arc(-5, 2, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffd400';
+  ctx.beginPath(); ctx.arc(4, 5, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3aa0ff';
+  ctx.beginPath(); ctx.arc(0, -6, 1.3, 0, Math.PI * 2); ctx.fill();
 }
 
 export function drawMogul(ctx) {
@@ -197,5 +224,23 @@ export function drawYeti(ctx) {
   ctx.fill(); ctx.stroke();
   ctx.beginPath();
   ctx.ellipse(15, -2, 4, 8, -0.3, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Santa hat.
+  ctx.fillStyle = '#cc1f1f';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(-9, -25);
+  ctx.lineTo(9, -25);
+  ctx.lineTo(6, -34);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // White brim.
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(0, -25, 10, 2, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Pom.
+  ctx.beginPath();
+  ctx.arc(6, -34, 2, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
 }
