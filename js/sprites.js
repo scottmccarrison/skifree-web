@@ -56,29 +56,18 @@ export function drawRock(ctx) {
 }
 
 export function drawJump(ctx) {
-  // Snow ramp - lighter on the lit side, darker on the trailing edge.
-  ctx.fillStyle = '#dde9f5';
-  ctx.beginPath();
-  ctx.moveTo(-18, 6);
-  ctx.lineTo(18, 6);
-  ctx.lineTo(10, -8);
-  ctx.lineTo(-10, -8);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#a9bccd';
-  ctx.beginPath();
-  ctx.moveTo(-18, 6);
-  ctx.lineTo(-10, -8);
-  ctx.lineTo(10, -8);
-  ctx.lineTo(8, 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#6a7c8e';
+  // Simple log laid across the slope.
+  ctx.fillStyle = '#7a4a1f';
+  ctx.fillRect(-18, -5, 36, 10);
+  ctx.strokeStyle = '#3a2410';
   ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(-18, 6); ctx.lineTo(-10, -8);
-  ctx.moveTo(18, 6);  ctx.lineTo(10, -8);
-  ctx.stroke();
+  ctx.strokeRect(-18, -5, 36, 10);
+  // End grain caps.
+  ctx.fillStyle = '#a36a32';
+  ctx.fillRect(-18, -5, 4, 10);
+  ctx.fillRect(14, -5, 4, 10);
+  ctx.strokeRect(-18, -5, 4, 10);
+  ctx.strokeRect(14, -5, 4, 10);
 }
 
 export function drawStump(ctx) {
