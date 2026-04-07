@@ -92,8 +92,13 @@ export function render(ctx, viewport, game) {
 
   // Camera: player drawn at ~1/3 from top, x centered.
   // In MP spectator mode, follow the surviving remote peer instead.
-  const cameraTarget = (game.spectating && game.remote)
-    ? lerpRemote(game.remote)
+  const cameraTarget = (game.spectating)
+    ? (function(){
+        if (!game.remotes || game.remotes.size === 0) return player;
+        for (const r of game.remotes.values()) { if (r.alive) return lerpRemote(r); }
+        for (const r of game.remotes.values()) return lerpRemote(r);
+        return player;
+      })()
     : player;
   const camX = cameraTarget.x - viewport.w / 2;
   const camY = cameraTarget.y - viewport.h / 3;
@@ -137,14 +142,16 @@ export function render(ctx, viewport, game) {
   drawPlayer(ctx, player.state);
   ctx.restore();
 
-  // Remote skier (multiplayer): translucent overlay at lerped position.
-  if (game.mode === 'mp' && game.remote) {
-    const r = lerpRemote(game.remote);
-    ctx.save();
-    ctx.globalAlpha = game.remote.alive ? 0.55 : 0.25;
-    ctx.translate(r.x - camX, r.y - camY);
-    drawPlayer(ctx, game.remote.state || 'straight');
-    ctx.restore();
+  // Remote skiers (multiplayer): translucent overlay per peer.
+  if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
+    for (const remote of game.remotes.values()) {
+      const lr = lerpRemote(remote);
+      ctx.save();
+      ctx.globalAlpha = remote.alive ? 0.55 : 0.25;
+      ctx.translate(lr.x - camX, lr.y - camY);
+      drawPlayer(ctx, remote.state || 'straight');
+      ctx.restore();
+    }
   }
 
   // Night mode: invert everything drawn so far via 'difference' with white.
@@ -164,11 +171,14 @@ export function render(ctx, viewport, game) {
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
   ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
-  if (game.mode === 'mp' && game.remote) {
-    const pname = (game.remote.name || 'P2').slice(0, 14);
-    const pscore = Math.floor(game.remote.score || 0);
-    const aliveTag = game.remote.alive ? '' : ' (out)';
-    ctx.fillText(`P2: ${pname} ${pscore} m${aliveTag}`, 16, 78);
+  if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
+    const first = game.remotes.values().next().value;
+    if (first) {
+      const pname = (first.name || 'P2').slice(0, 14);
+      const pscore = Math.floor(first.score || 0);
+      const aliveTag = first.alive ? '' : ' (out)';
+      ctx.fillText(`P2: ${pname} ${pscore} m${aliveTag}`, 16, 78);
+    }
   }
 
   // State overlays.

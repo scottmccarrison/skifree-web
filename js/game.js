@@ -64,8 +64,9 @@ export function createGame(seed) {
     mode: 'solo',          // 'solo' | 'mp'
     session: null,
     isHost: true,
-    remote: null,
+    remotes: new Map(),
     remoteYeti: null,
+    spectateCycleIdx: 0,
     spectating: false,
     lastSentT: 0,
     seq: 0,
@@ -112,7 +113,7 @@ export function updateGame(game, input, viewport, dt) {
     if (!game.spectating) {
       updatePlayer(game.player, input, dt, speedMult);
     }
-    const cameraTarget = (game.spectating && game.remote) ? { x: game.remote.x, y: game.remote.y } : game.player;
+    const cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
     updateWorld(game.world, cameraTarget, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
@@ -193,6 +194,13 @@ export function updateGame(game, input, viewport, dt) {
   }
 }
 
+export function pickSpectateTarget(game) {
+  if (!game.remotes || game.remotes.size === 0) return game.player;
+  for (const r of game.remotes.values()) { if (r.alive) return r; }
+  for (const r of game.remotes.values()) return r;
+  return game.player;
+}
+
 function resetMpState(game) {
   if (game.mode === 'mp') {
     if (game.session && !game.session.closed) {
@@ -201,8 +209,9 @@ function resetMpState(game) {
     game.mode = 'solo';
     game.session = null;
     game.isHost = true;
-    game.remote = null;
+    game.remotes = new Map();
     game.remoteYeti = null;
+    game.spectateCycleIdx = 0;
     game.spectating = false;
     game.peerLeft = false;
     game.lastSentT = 0;
@@ -247,9 +256,13 @@ function endRun(game) {
   }
   // Multiplayer: if the peer is still alive, become a spectator instead of
   // ending the run.
-  if (game.mode === 'mp' && game.session && game.remote && game.remote.alive && !game.peerLeft) {
-    game.spectating = true;
-    return;
+  if (game.mode === 'mp' && game.session && !game.peerLeft) {
+    let anyAlive = false;
+    for (const r of game.remotes.values()) { if (r.alive) { anyAlive = true; break; } }
+    if (anyAlive) {
+      game.spectating = true;
+      return;
+    }
   }
 
   game.state = 'gameover';
