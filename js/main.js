@@ -5,6 +5,7 @@ import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 import { createSession } from './net.js';
+import { colorForIndex } from './colors.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -208,14 +209,71 @@ function syncTouchZones() {
 // Multiplayer lobby modal wiring.
 let mpSession = null;
 
+function renderLobby() {
+  if (!mpSession) return;
+  const roster = mpSession.roster || [];
+  const myId = mpSession.id;
+  const iAmHost = mpSession.isHost;
+
+  document.getElementById('mp-roster-wrap').classList.remove('hidden');
+  document.getElementById('mp-pre-join').classList.add('hidden');
+
+  document.getElementById('mp-roster-count').textContent = `${roster.length}/10`;
+
+  const list = document.getElementById('mp-roster');
+  list.innerHTML = '';
+
+  for (const p of roster) {
+    const row = document.createElement('div');
+    row.className = 'mp-row' + (p.id === myId ? ' mp-row-self' : '');
+    row.dataset.id = String(p.id);
+
+    const sw = document.createElement('div');
+    sw.className = 'mp-swatch';
+    sw.style.background = colorForIndex(p.color);
+    row.appendChild(sw);
+
+    const nm = document.createElement('div');
+    nm.className = 'mp-name';
+    nm.textContent = p.name || `anon${p.id}`;
+    if (p.isHost) {
+      const tag = document.createElement('span');
+      tag.className = 'mp-tag';
+      tag.textContent = '(host)';
+      nm.appendChild(tag);
+    }
+    row.appendChild(nm);
+
+    if (p.ready) {
+      const rd = document.createElement('div');
+      rd.className = 'mp-ready-icon';
+      rd.textContent = '✓';
+      row.appendChild(rd);
+    }
+
+    if (iAmHost && p.id !== myId && !p.isHost) {
+      const k = document.createElement('button');
+      k.className = 'mp-kick-btn';
+      k.textContent = 'Kick';
+      k.addEventListener('click', () => mpSession.sendKick(p.id));
+      row.appendChild(k);
+    }
+
+    list.appendChild(row);
+  }
+}
+
 function openMpModal() {
   const modal = document.getElementById('mp-modal');
   modal.classList.remove('hidden');
+  document.getElementById('mp-roster-wrap').classList.add('hidden');
+  document.getElementById('mp-pre-join').classList.remove('hidden');
   document.getElementById('mp-code-row').classList.add('hidden');
   document.getElementById('mp-code-display').textContent = '';
   const ready = document.getElementById('mp-ready');
   ready.classList.add('hidden');
   ready.disabled = true;
+  ready.style.display = '';
   setMpStatus('');
   const codeInput = document.getElementById('mp-code-input');
   codeInput.value = '';
@@ -224,6 +282,8 @@ function openMpModal() {
   document.getElementById('mp-join-go').disabled = false;
   const cancel = document.getElementById('mp-cancel');
   if (cancel) cancel.disabled = false;
+  const list = document.getElementById('mp-roster');
+  if (list) list.innerHTML = '';
 }
 function closeMpModal() {
   document.getElementById('mp-modal').classList.add('hidden');
@@ -248,7 +308,8 @@ async function startHost() {
     const code = await mpSession.host();
     document.getElementById('mp-code-display').textContent = code;
     document.getElementById('mp-code-row').classList.remove('hidden');
-    setMpStatus('Waiting for friend...');
+    setMpStatus('Waiting for players...');
+    renderLobby();
   } catch (err) {
     setMpStatus('Failed to host: ' + err.message);
     document.getElementById('mp-host').disabled = false;
@@ -272,24 +333,33 @@ function commitJoin() {
 
 function wireMpSession() {
   mpSession.on('welcome', () => {
-    if (mpSession.peer) {
-      setMpStatus(`Joined ${mpSession.peer.name}'s run`);
-      const ready = document.getElementById('mp-ready');
-      ready.classList.remove('hidden');
-      ready.disabled = false;
+    renderLobby();
+    const ready = document.getElementById('mp-ready');
+    ready.classList.remove('hidden');
+    ready.disabled = (mpSession.roster.length < 2);
+    if (mpSession.roster.length >= 2) {
+      setMpStatus('Ready up when you are');
+    } else {
+      setMpStatus('Waiting for players...');
     }
   });
   mpSession.on('peerJoined', e => {
-    setMpStatus(`${e.name} joined - ready up!`);
+    renderLobby();
     const ready = document.getElementById('mp-ready');
     ready.classList.remove('hidden');
-    ready.disabled = false;
+    ready.disabled = (mpSession.roster.length < 2);
+    setMpStatus(`${e.name || 'A player'} joined`);
   });
   mpSession.on('peerReady', () => {
     if (game && game.state === 'gameover' && game.mode === 'mp') {
       game.rematchStatus = 'Friend is ready...';
-    } else {
-      setMpStatus('Friend is ready...');
+      return;
+    }
+    renderLobby();
+    const allReady = mpSession.roster.length >= 2 && mpSession.roster.every(p => p.ready);
+    if (!allReady) {
+      const numReady = mpSession.roster.filter(p => p.ready).length;
+      setMpStatus(`${numReady}/${mpSession.roster.length} ready`);
     }
   });
   mpSession.on('start', e => {
@@ -319,8 +389,12 @@ function wireMpSession() {
     }, ms);
   });
   mpSession.on('peerLeft', () => {
-    setMpStatus('Friend left');
-    document.getElementById('mp-ready').disabled = true;
+    renderLobby();
+    const ready = document.getElementById('mp-ready');
+    if (mpSession.roster.length < 2) {
+      ready.disabled = true;
+      setMpStatus('Waiting for players...');
+    }
   });
   mpSession.on('error', () => {
     setMpStatus('Connection error');
@@ -337,7 +411,8 @@ document.getElementById('mp-join-go').addEventListener('click', commitJoin);
 document.getElementById('mp-ready').addEventListener('click', () => {
   if (mpSession) {
     mpSession.sendReady();
-    setMpStatus("You're ready - waiting on friend...");
+    const numReady = (mpSession.roster.filter(p => p.ready).length) + 1;
+    setMpStatus(`${numReady}/${mpSession.roster.length} ready (you're in)`);
     document.getElementById('mp-ready').disabled = true;
   }
 });
