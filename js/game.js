@@ -44,7 +44,7 @@ function pickHint() {
 export function createGame(seed) {
   const gameSeed = (seed === undefined ? Date.now() : seed) >>> 0;
   return {
-    state: 'title', // 'title' | 'playing' | 'gameover'
+    state: 'title', // 'title' | 'playing' | 'paused' | 'gameover'
     seed: gameSeed,
     player: createPlayer(),
     world: createWorld(gameSeed),
@@ -104,11 +104,20 @@ export function updateGame(game, input, viewport, dt) {
     return;
   }
 
+  // Paused (e.g. feedback modal open in solo). Freeze the sim entirely.
+  // MP never pauses - openFeedback gates on game.mode !== 'mp'.
+  if (game.state === 'paused') {
+    return;
+  }
+
   if (game.state === 'playing') {
     game.elapsed += dt;
     // Difficulty: 1.0 at start, +1.0 per 30s, capped at ~3.5.
     const difficulty = Math.min(3.5, 1 + game.elapsed / 30);
     const speedMult = Math.min(1.6, 1 + game.elapsed / 90);
+    // Exposed on game so the MP broadcast payload can include it - the host
+    // needs every player's speedMult to scale the yeti against its target.
+    game.speedMult = speedMult;
 
     if (!game.spectating) {
       updatePlayer(game.player, input, dt, speedMult);
@@ -144,7 +153,12 @@ export function updateGame(game, input, viewport, dt) {
       const targetForYeti = (target === game.player)
         ? game.player
         : { x: target.x, y: target.y };
-      const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty);
+      // Yeti speed scales with the target's own speedMult so it stays
+      // proportional to whoever it's actually chasing.
+      const targetSpeedMult = (target === game.player)
+        ? speedMult
+        : (typeof target.speedMult === 'number' ? target.speedMult : 1);
+      const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty, targetSpeedMult);
       if (eaten && !game.spectating && target === game.player) {
         endRun(game);
         return;
@@ -171,6 +185,7 @@ export function updateGame(game, input, viewport, dt) {
           y: game.player.y,
           state: game.player.state,
           score: game.score,
+          speedMult: game.speedMult,
           seq: game.seq++,
         };
         if (game.isHost) {
@@ -279,7 +294,7 @@ function startRun(game) {
 }
 
 export function forceEndRun(game) {
-  if (game.state === 'playing') endRun(game);
+  if (game.state === 'playing' || game.state === 'paused') endRun(game);
 }
 
 export function forceGameOver(game) {

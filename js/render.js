@@ -136,7 +136,7 @@ export function render(ctx, viewport, game) {
     if (sy < -60 || sy > viewport.h + 60) continue;
     ctx.save();
     ctx.translate(sx, sy);
-    SPRITE_FNS[o.type.kind](ctx);
+    SPRITE_FNS[o.type.kind](ctx, score);
     ctx.restore();
   }
 
@@ -270,13 +270,17 @@ export function render(ctx, viewport, game) {
 function drawSnowflakes(ctx, viewport, t, count) {
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  const W = viewport.w + 40;
   for (let i = 0; i < count; i++) {
     // Deterministic per-flake offsets so they don't strobe.
     const seed = i * 12.9898;
     const sx = ((Math.sin(seed) * 43758) % 1 + 1) % 1;
     const sy = ((Math.sin(seed + 1.7) * 43758) % 1 + 1) % 1;
     const speed = 20 + ((i * 7) % 30);
-    const x = sx * viewport.w + Math.sin(t * 0.5 + i) * 8;
+    // Diagonal drift: each flake travels horizontally proportional to its
+    // fall speed, wrapping across an extended width so it never strands.
+    const baseX = sx * W;
+    const x = ((baseX + Math.sin(t * 0.5 + i) * 8 + t * speed * 0.25) % W + W) % W - 20;
     const y = (sy * viewport.h + t * speed) % viewport.h;
     const r = 1.2 + ((i * 3) % 3) * 0.5;
     ctx.beginPath();
@@ -385,7 +389,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
       ctx.save();
       ctx.translate(ix, iy);
       ctx.scale(0.55, 0.55);
-      item.draw(ctx);
+      item.draw(ctx, 9999);
       ctx.restore();
       // Label
       ctx.fillStyle = '#1a1a1a';
