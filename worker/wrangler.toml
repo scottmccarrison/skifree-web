@@ -18,3 +18,11 @@ not_found_handling = "single-page-application"
 binding = "DB"
 database_name = "skifree"
 database_id = "cfefb367-2dcd-4512-9bd6-f38c2db16424"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
