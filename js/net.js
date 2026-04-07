@@ -73,6 +73,7 @@ export function createSession() {
           emit('peerReady', data);
           break;
         case 'start':
+          if (typeof data.seed === 'number') seed = data.seed;
           emit('start', data);
           break;
         case 'state':

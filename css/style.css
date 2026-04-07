@@ -183,6 +183,22 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 6px;
 }
+#mp-modal .hidden { display: none; }
+#mp-modal .mp-host-block { margin-bottom: 12px; }
+#mp-modal #mp-code-row { margin-top: 8px; }
+#mp-modal .mp-divider {
+  text-align: center;
+  margin: 16px 0 8px;
+  opacity: 0.6;
+  font-size: 14px;
+}
+#mp-modal .mp-join-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+#mp-modal .mp-join-row #mp-code-input { flex: 1; margin: 0; }
+#mp-modal .mp-join-row #mp-join-go { flex: 0 0 auto; margin: 0; padding: 12px 20px; }
 
 .fb-card {
   background: #fff;

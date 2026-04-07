@@ -71,6 +71,8 @@ export function createGame(seed) {
     seq: 0,
     peerLeft: false,
     diedSent: false,
+    rematchPending: false,
+    rematchStatus: '',
   };
 }
 
@@ -178,8 +180,14 @@ export function updateGame(game, input, viewport, dt) {
 
   if (game.state === 'gameover') {
     if (input.restart) {
-      resetMpState(game);
-      startRun(game);
+      if (game.mode === 'mp' && game.session && !game.peerLeft && !game.rematchPending) {
+        game.rematchPending = true;
+        game.rematchStatus = "You're ready - waiting on friend...";
+        try { game.session.sendReady(); } catch {}
+      } else if (game.mode !== 'mp') {
+        resetMpState(game);
+        startRun(game);
+      }
     }
     return;
   }

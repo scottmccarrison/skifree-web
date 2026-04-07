@@ -209,51 +209,50 @@ function syncTouchZones() {
 let mpSession = null;
 
 function openMpModal() {
-  showMpStage('choose');
-  document.getElementById('mp-modal').classList.remove('hidden');
+  const modal = document.getElementById('mp-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('mp-code-row').classList.add('hidden');
+  document.getElementById('mp-code-display').textContent = '';
+  const ready = document.getElementById('mp-ready');
+  ready.classList.add('hidden');
+  ready.disabled = true;
+  setMpStatus('');
+  const codeInput = document.getElementById('mp-code-input');
+  codeInput.value = '';
+  codeInput.disabled = false;
+  document.getElementById('mp-host').disabled = false;
+  document.getElementById('mp-join-go').disabled = false;
   const cancel = document.getElementById('mp-cancel');
   if (cancel) cancel.disabled = false;
-  const ready = document.getElementById('mp-ready');
-  if (ready) { ready.style.display = ''; ready.disabled = true; }
 }
 function closeMpModal() {
   document.getElementById('mp-modal').classList.add('hidden');
   if (mpSession && !mpSession.closed) { mpSession.close(); }
   mpSession = null;
 }
-function showMpStage(stage) {
-  ['choose', 'join', 'lobby'].forEach(s => {
-    const el = document.getElementById('mp-stage-' + s);
-    if (!el) return;
-    if (s === stage) el.classList.remove('hidden');
-    else el.classList.add('hidden');
-  });
-}
 function setMpStatus(text) {
   const el = document.getElementById('mp-status');
-  if (el) el.textContent = text;
+  if (el) el.textContent = text || '\u00a0';
 }
-function showLobbyStage(code) {
-  showMpStage('lobby');
-  document.getElementById('mp-code-display').textContent = code;
-  setMpStatus('Waiting for friend...');
-  document.getElementById('mp-ready').disabled = true;
+function setStartStatus(text) {
+  setMpStatus(text);
+  if (game) game.rematchStatus = text;
 }
 
 async function startHost() {
   try {
     mpSession = createSession();
     wireMpSession();
+    setMpStatus('Creating room...');
+    document.getElementById('mp-host').disabled = true;
     const code = await mpSession.host();
-    showLobbyStage(code);
+    document.getElementById('mp-code-display').textContent = code;
+    document.getElementById('mp-code-row').classList.remove('hidden');
+    setMpStatus('Waiting for friend...');
   } catch (err) {
     setMpStatus('Failed to host: ' + err.message);
+    document.getElementById('mp-host').disabled = false;
   }
-}
-
-function startJoin() {
-  showMpStage('join');
-  setTimeout(() => document.getElementById('mp-code-input').focus(), 50);
 }
 
 function commitJoin() {
@@ -264,36 +263,48 @@ function commitJoin() {
   }
   mpSession = createSession();
   wireMpSession();
+  setMpStatus('Joining...');
   mpSession.join(code);
-  showLobbyStage(code);
+  document.getElementById('mp-host').disabled = true;
+  document.getElementById('mp-join-go').disabled = true;
+  document.getElementById('mp-code-input').disabled = true;
 }
 
 function wireMpSession() {
   mpSession.on('welcome', () => {
     if (mpSession.peer) {
       setMpStatus(`Joined ${mpSession.peer.name}'s run`);
-      document.getElementById('mp-ready').disabled = false;
+      const ready = document.getElementById('mp-ready');
+      ready.classList.remove('hidden');
+      ready.disabled = false;
     }
   });
   mpSession.on('peerJoined', e => {
     setMpStatus(`${e.name} joined - ready up!`);
-    document.getElementById('mp-ready').disabled = false;
+    const ready = document.getElementById('mp-ready');
+    ready.classList.remove('hidden');
+    ready.disabled = false;
   });
   mpSession.on('peerReady', () => {
-    setMpStatus('Friend is ready...');
+    if (game && game.state === 'gameover' && game.mode === 'mp') {
+      game.rematchStatus = 'Friend is ready...';
+    } else {
+      setMpStatus('Friend is ready...');
+    }
   });
   mpSession.on('start', e => {
     const ms = (e && typeof e.countdownMs === 'number') ? e.countdownMs : 3000;
+    const startSeed = (e && typeof e.seed === 'number') ? e.seed : mpSession.seed;
     const cancelBtn = document.getElementById('mp-cancel');
     if (cancelBtn) cancelBtn.disabled = true;
     const ready = document.getElementById('mp-ready');
     if (ready) ready.style.display = 'none';
     let n = Math.ceil(ms / 1000);
-    setMpStatus('Starting in ' + n + '...');
+    setStartStatus('Starting in ' + n + '...');
     const tick = setInterval(() => {
       n -= 1;
-      if (n > 0) setMpStatus('Starting in ' + n + '...');
-      else setMpStatus('GO!');
+      if (n > 0) setStartStatus('Starting in ' + n + '...');
+      else setStartStatus('GO!');
     }, 1000);
     setTimeout(() => {
       clearInterval(tick);
@@ -301,7 +312,7 @@ function wireMpSession() {
       if (cancelBtn) cancelBtn.disabled = false;
       if (ready) ready.style.display = '';
       if (typeof window.startMultiplayerGame === 'function') {
-        window.startMultiplayerGame(mpSession.seed, mpSession);
+        window.startMultiplayerGame(startSeed, mpSession);
       } else {
         console.warn('[mp] startMultiplayerGame not yet implemented (WS4)');
       }
@@ -322,7 +333,6 @@ function wireMpSession() {
 }
 
 document.getElementById('mp-host').addEventListener('click', startHost);
-document.getElementById('mp-join').addEventListener('click', startJoin);
 document.getElementById('mp-join-go').addEventListener('click', commitJoin);
 document.getElementById('mp-ready').addEventListener('click', () => {
   if (mpSession) {
@@ -356,6 +366,10 @@ window.startMultiplayerGame = function(seed, session) {
   // Drop directly into a run.
   input.restart = true;
   setTimeout(() => { input.restart = false; }, 80);
+
+  // Avoid double-registering listeners on rematch (same session reused).
+  if (session.__gameplayWired) return;
+  session.__gameplayWired = true;
 
   session.on('state', e => {
     if (!game.remote) return;

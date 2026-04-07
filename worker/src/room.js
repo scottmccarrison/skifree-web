@@ -119,9 +119,19 @@ export class Room {
         this.broadcast({ type: 'peerReady', id: meta.id });
         const all = this.peers();
         if (all.length >= 2 && all.every(p => p.ready)) {
+          // Reset ready flags so a future rematch can fire 'start' again
+          for (const sock of this.state.getWebSockets()) {
+            const m = sock.deserializeAttachment() || {};
+            m.ready = false;
+            sock.serializeAttachment(m);
+          }
+          // Generate a NEW seed for this run (each rematch is a fresh hill)
+          const newSeed = crypto.getRandomValues(new Uint32Array(1))[0];
+          this.seed = newSeed;
+          await this.state.storage.put('seed', newSeed);
           this.started = true;
           await this.state.storage.deleteAlarm();
-          this.broadcast({ type: 'start', countdownMs: 3000 });
+          this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
         }
         break;
       }

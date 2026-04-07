@@ -183,11 +183,16 @@ export function render(ctx, viewport, game) {
       multiplayer: true,
     });
   } else if (state === 'gameover') {
+    const lines = [`${Math.floor(score)} m`];
+    if (game.mode === 'mp') {
+      lines.push(game.rematchStatus || 'Press RESTART for rematch');
+    }
     drawCenteredPanel(ctx, viewport, game, {
       title: 'GAME OVER',
       hint: game.hint,
-      lines: [`${Math.floor(score)} m`],
+      lines,
       restart: true,
+      multiplayer: game.mode !== 'mp',
     });
   }
 }
