@@ -39,19 +39,20 @@ export function createSession() {
     (listeners[event] || []).forEach(fn => { try { fn(payload); } catch (e) { console.error(e); } });
   }
 
+  // Detect the URL prefix the page is served under (e.g. "/ski" or "/skidev")
+  // by taking the first path segment. Empty string if served from root.
+  function urlPrefix() {
+    const m = location.pathname.match(/^\/[^/]+/);
+    return m ? m[0] : '';
+  }
+
   function buildWsUrl(roomCode) {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const base = location.pathname.startsWith('/ski/') || location.pathname === '/ski'
-      ? '/ski'
-      : '';
-    return `${proto}//${location.host}${base}/api/room/${roomCode}`;
+    return `${proto}//${location.host}${urlPrefix()}/api/room/${roomCode}`;
   }
 
   function buildHttpUrl(path) {
-    const base = location.pathname.startsWith('/ski/') || location.pathname === '/ski'
-      ? '/ski'
-      : '';
-    return `${base}${path}`;
+    return `${urlPrefix()}${path}`;
   }
 
   function attachSocket(roomCode) {

@@ -1,8 +1,10 @@
-// skifree-api worker.
-// Routes:
-//   GET  /ski/api/leaderboard      -> top 10 scores
-//   POST /ski/api/score            -> { name, score }
-//   *                              -> serves static assets from ../
+// skifree-api worker (also used by skidev-api via wrangler.dev.toml).
+// Path prefix is read from env.PATH_PREFIX (defaults to "/ski") so the same
+// code can serve mccarrison.me/ski (prod) and mccarrison.me/skidev (dev).
+// Routes (relative to the prefix):
+//   GET  /api/leaderboard      -> top 10 scores
+//   POST /api/score            -> { name, score }
+//   *                          -> serves static assets from ../
 
 export { Room } from './room.js';
 
@@ -12,16 +14,16 @@ const MAX_SCORE = 10_000_000;
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const prefix = (env.PATH_PREFIX || '/ski');
 
-    // Redirect bare /ski to /ski/ so relative asset paths resolve correctly.
-    if (url.pathname === '/ski') {
-      return Response.redirect(url.origin + '/ski/', 301);
+    // Redirect bare prefix to prefix + '/' so relative asset paths resolve.
+    if (url.pathname === prefix) {
+      return Response.redirect(url.origin + prefix + '/', 301);
     }
 
-    // Strip the /ski prefix when bound to mccarrison.me/ski/*
+    // Strip the configured prefix when bound to mccarrison.me/<prefix>/*
     let path = url.pathname;
-    if (path.startsWith('/ski/')) path = path.slice(4) || '/';
-    else if (path === '/ski') path = '/';
+    if (path.startsWith(prefix + '/')) path = path.slice(prefix.length) || '/';
 
     if (path === '/api/leaderboard' && request.method === 'GET') {
       return getLeaderboard(env);
