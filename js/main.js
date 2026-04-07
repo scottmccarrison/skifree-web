@@ -48,17 +48,58 @@ nameInput.addEventListener('keydown', (e) => e.stopPropagation());
 
 loadLeaderboard(game);
 
-// Help button - opens a prefilled GitHub issue.
-document.getElementById('help-btn').addEventListener('click', () => {
-  const url = 'https://github.com/scottmccarrison/skifree-web/issues/new'
-    + '?title=' + encodeURIComponent('feedback: ')
-    + '&body=' + encodeURIComponent(
-        'What happened or what would you like to change?\n\n\n'
-        + '---\n'
-        + `device: ${navigator.userAgent}\n`
-        + `viewport: ${window.innerWidth}x${window.innerHeight}\n`
-      );
-  window.open(url, '_blank', 'noopener');
+// Help button - opens an in-page modal that POSTs to /api/feedback.
+const fbModal = document.getElementById('feedback-modal');
+const fbText = document.getElementById('fb-text');
+const fbStatus = document.getElementById('fb-status');
+const fbSend = document.getElementById('fb-send');
+const fbCancel = document.getElementById('fb-cancel');
+
+function openFeedback() {
+  fbStatus.textContent = '';
+  fbText.value = '';
+  fbSend.disabled = false;
+  fbCancel.disabled = false;
+  fbModal.classList.remove('hidden');
+  setTimeout(() => fbText.focus(), 0);
+}
+
+function closeFeedback() {
+  fbModal.classList.add('hidden');
+}
+
+document.getElementById('help-btn').addEventListener('click', openFeedback);
+fbCancel.addEventListener('click', closeFeedback);
+fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
+fbText.addEventListener('keydown', (e) => e.stopPropagation());
+
+fbSend.addEventListener('click', async () => {
+  const message = fbText.value.trim();
+  if (message.length < 3) {
+    fbStatus.textContent = 'add a few more words first';
+    return;
+  }
+  fbSend.disabled = true;
+  fbCancel.disabled = true;
+  fbStatus.textContent = 'sending...';
+  try {
+    const apiBase = location.pathname.startsWith('/ski') ? '/ski/api' : '/api';
+    const r = await fetch(`${apiBase}/feedback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        meta: `device: ${navigator.userAgent}\nviewport: ${window.innerWidth}x${window.innerHeight}`,
+      }),
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    fbStatus.textContent = 'thanks! sent.';
+    setTimeout(closeFeedback, 900);
+  } catch (e) {
+    fbStatus.textContent = 'failed to send - try again later';
+    fbSend.disabled = false;
+    fbCancel.disabled = false;
+  }
 });
 
 // End button - triggers game over so the leaderboard shows.

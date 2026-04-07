@@ -113,3 +113,83 @@ html, body {
   height: 30px;
   pointer-events: none;
 }
+
+#feedback-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#feedback-modal.hidden { display: none; }
+
+.fb-card {
+  background: #fff;
+  border: 2px solid #1a1a1a;
+  border-radius: 12px;
+  padding: 18px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fb-title {
+  font: bold 18px -apple-system, system-ui, sans-serif;
+}
+
+#fb-text {
+  width: 100%;
+  font: 14px -apple-system, system-ui, sans-serif;
+  padding: 10px;
+  border: 2px solid rgba(26, 26, 26, 0.45);
+  border-radius: 8px;
+  resize: vertical;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+  background: #fff;
+  color: var(--ink);
+}
+
+#fb-text:focus {
+  border-color: rgba(26, 26, 26, 0.9);
+}
+
+#fb-status {
+  font: 13px -apple-system, system-ui, sans-serif;
+  color: #666;
+  min-height: 16px;
+}
+
+.fb-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.fb-actions button {
+  font: 14px -apple-system, system-ui, sans-serif;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(26, 26, 26, 0.45);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#fb-send {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+#fb-send:disabled, #fb-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
