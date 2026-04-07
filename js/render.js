@@ -353,12 +353,12 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     ctx.textAlign = 'center';
   }
 
-  // Restart button: prominent rectangle near the bottom of the panel.
+  // Restart button: always bottom-center, fixed position regardless of gift.
   if (restart) {
     const btnW = Math.min(w - 64, 200);
     const btnH = 36;
     const bx = cx - btnW / 2;
-    const by = cy + h/2 - (gift ? 56 : 22) - btnH;
+    const by = cy + h/2 - 22 - btnH;
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 8);
@@ -376,10 +376,10 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     });
   }
 
-  // Gift icon at the bottom of the panel: opens the changelog popup.
+  // Gift icon: bottom-right corner of the panel.
   if (gift) {
-    const gx = cx;
-    const gy = cy + h/2 - 18;
+    const gx = cx + w/2 - 22;
+    const gy = cy + h/2 - 22;
     drawGiftIcon(ctx, gx, gy);
     hitRegions.push({
       x: gx - 18, y: gy - 18, w: 36, h: 36,
