@@ -282,6 +282,7 @@ export function render(ctx, viewport, game) {
 }
 
 function drawSnowflakes(ctx, viewport, t, count) {
+  if (viewport.w <= 0 || viewport.h <= 0) return;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   const W = viewport.w + 40;

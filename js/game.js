@@ -146,9 +146,12 @@ export function updateGame(game, input, viewport, dt) {
       }
     }
 
-    // Critters: per-player local hazards. Update first so collision below
-    // sees their post-step positions, then check against the local player.
-    updateCritters(game.critters, game.player, viewport, dt, game.score, speedMult);
+    // Critters: per-player local hazards. Skip entirely while spectating -
+    // a dead player can't crash again and the camera follows the slowest
+    // alive remote, so spawning around our crashed body is wasted work.
+    if (!game.spectating) {
+      updateCritters(game.critters, game.player, viewport, dt, game.score, speedMult);
+    }
     if (!game.spectating && checkCritterCollision(game.critters, game.player)) {
       captureCrashSnapshot(game);
       crashPlayer(game.player);

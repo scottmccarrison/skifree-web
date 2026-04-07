@@ -63,7 +63,10 @@ const fbCancel = document.getElementById('fb-cancel');
 
 // Track whether opening feedback paused an in-progress solo run, so we can
 // resume it on close. MP never pauses - peers would desync from a frozen host.
+// Cleared whenever the `game` variable gets reassigned (kick / host-leave /
+// rematch / mp-cancel) so a stale flag never tries to mutate a fresh game.
 let feedbackPausedRun = false;
+function clearFeedbackPause() { feedbackPausedRun = false; }
 
 function openFeedback() {
   if (game && game.mode !== 'mp' && game.state === 'playing') {
@@ -507,6 +510,7 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
     game = createGame();
     game.state = 'title';
     mpGameoverShown = false;
+    clearFeedbackPause();
   }
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
@@ -515,6 +519,7 @@ document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.st
 // current game object with a fresh seeded one, attaches the live session,
 // and wires gameplay-specific listeners onto it.
 window.startMultiplayerGame = function(seed, session) {
+  clearFeedbackPause();
   game = createGame(seed >>> 0);
   game.mode = 'mp';
   game.session = session;
@@ -558,6 +563,9 @@ window.startMultiplayerGame = function(seed, session) {
     }
     if (typeof e.seq === 'number' && e.seq < r.lastSeq) return;
     if (typeof e.seq === 'number') r.lastSeq = e.seq;
+    // Validate position fields - a malformed peer message must not poison
+    // the remote's lerp/render state.
+    if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) return;
     r.prevX = r.x;
     r.prevY = r.y;
     r.prevT = r.lastT || (performance.now() / 1000);
@@ -609,6 +617,7 @@ window.startMultiplayerGame = function(seed, session) {
       try { session.close(); } catch {}
       game = createGame();
       game.state = 'title';
+      clearFeedbackPause();
       if (typeof openMpModal === 'function') openMpModal();
       return;
     }
@@ -627,6 +636,7 @@ window.startMultiplayerGame = function(seed, session) {
     try { session.close(); } catch {}
     game = createGame();
     game.state = 'title';
+    clearFeedbackPause();
     if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
     if (typeof openMpModal === 'function') openMpModal();
   });
