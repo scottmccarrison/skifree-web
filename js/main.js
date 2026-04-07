@@ -383,6 +383,23 @@ function commitJoin() {
 
 function wireMpSession() {
   mpSession.on('welcome', () => {
+    // Mid-run join: a game is already running in this room. Drop straight
+    // into spectator mode instead of the lobby. We get added to the next
+    // rematch automatically when everyone dies.
+    if (mpSession.inProgress) {
+      document.getElementById('mp-modal').classList.add('hidden');
+      if (typeof window.startMultiplayerGame === 'function') {
+        window.startMultiplayerGame(mpSession.seed, mpSession);
+        // Mark our local player crashed + spectating so updateGame freezes
+        // them and the camera follows the slowest alive remote.
+        game.player.state = 'crashed';
+        game.player.crashTimer = 999;
+        game.spectating = true;
+        game.diedSent = true;
+        try { mpSession.sendDied(); } catch {}
+      }
+      return;
+    }
     renderLobby();
     const ready = document.getElementById('mp-ready');
     ready.classList.remove('hidden');

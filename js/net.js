@@ -25,6 +25,7 @@ export function createSession() {
   let id = null;
   let isHost = false;
   let color = 0;
+  let inProgress = false;   // true if we joined a room mid-game
   let peer = null;          // {id, name} of the other player when present
   let roster = [];          // [{id, name, color, isHost, ready}]
   let closed = false;
@@ -72,6 +73,7 @@ export function createSession() {
           isHost = !!data.isHost;
           seed = data.seed;
           if (typeof data.color === 'number') color = data.color;
+          inProgress = !!data.inProgress;
           roster = Array.isArray(data.roster) ? data.roster.slice() : [];
           syncPeer();
           emit('welcome', data);
@@ -160,6 +162,7 @@ export function createSession() {
     get id() { return id; },
     get isHost() { return isHost; },
     get color() { return color; },
+    get inProgress() { return inProgress; },
     get roster() { return roster.slice(); },
     get peer() { return peer; },
     get closed() { return closed; },

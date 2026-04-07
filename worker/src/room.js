@@ -26,6 +26,11 @@ export class Room {
     this.seed = null;
     this.hostId = null;
     this.nextId = 1;
+    // Set true after the first 'start' broadcast. Late joiners read this
+    // from welcome and drop straight into spectator mode instead of the
+    // lobby. Stays true for the lifetime of the room (the gameover/rematch
+    // modal handles the "between runs" state on the client side).
+    this.inProgress = false;
   }
 
   async fetch(request) {
@@ -122,6 +127,12 @@ export class Room {
           id: p.id, name: p.name, color: p.color, isHost: p.isHost, ready: p.ready
         }));
 
+        // Lazy-restore inProgress from storage in case the DO hibernated.
+        if (this.inProgress === false) {
+          const persisted = await this.state.storage.get('inProgress');
+          if (persisted) this.inProgress = true;
+        }
+
         ws.send(JSON.stringify({
           type: 'welcome',
           id: meta.id,
@@ -129,6 +140,7 @@ export class Room {
           color: meta.color,
           seed: this.seed,
           roster,
+          inProgress: this.inProgress,
         }));
         this.broadcastExcept(meta.id, { type: 'peerJoined', id: meta.id, name, color: meta.color });
         break;
@@ -149,6 +161,8 @@ export class Room {
           const newSeed = crypto.getRandomValues(new Uint32Array(1))[0];
           this.seed = newSeed;
           await this.state.storage.put('seed', newSeed);
+          this.inProgress = true;
+          await this.state.storage.put('inProgress', true);
           await this.state.storage.deleteAlarm();
           this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
         }
