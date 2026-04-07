@@ -1,0 +1,11 @@
+node_modules
+.git
+worker
+package.json
+package-lock.json
+.gitignore
+.assetsignore
+README.md
+deploy.sh
+infra
+.wrangler

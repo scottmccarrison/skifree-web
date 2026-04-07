@@ -2,23 +2,19 @@ name = "skifree-api"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
-# Static asset binding: serves the parent ../ skifree-web directory at the
-# worker root, while the worker code below handles /api/* itself.
+routes = [
+  { pattern = "mccarrison.me/ski*", zone_name = "mccarrison.me" },
+]
+
+# Static asset binding: serves the parent skifree-web directory at the
+# worker root, while the worker code itself handles /api/*.
 [assets]
 directory = "../"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-# D1 database for the leaderboard. Created via:
-#   npx wrangler d1 create skifree
-# then paste the returned database_id below.
+# D1 database for the leaderboard.
 [[d1_databases]]
 binding = "DB"
 database_name = "skifree"
-database_id = "REPLACE_WITH_D1_ID"
-
-# Custom routes - bind this worker to mccarrison.me/ski/*
-# (uncomment after the zone is set up in your Cloudflare account):
-# routes = [
-#   { pattern = "mccarrison.me/ski/*", zone_name = "mccarrison.me" },
-# ]
+database_id = "cfefb367-2dcd-4512-9bd6-f38c2db16424"
