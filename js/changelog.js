@@ -8,6 +8,11 @@ export const CHANGELOG = [
     version: 'v0.3 - multiplayer',
     items: [
       'NEW: multiplayer - host or join a 4-letter code and ski together',
+      'NEW: squirrels sprint across the slope after 300m - jump them or crash',
+      'TWEAK: yeti speed now scales with the player it is chasing',
+      'TWEAK: tree lights only appear after 500m',
+      'TWEAK: snow drifts at an angle',
+      'FIX: feedback button now pauses solo runs',
     ],
   },
   {
