@@ -1,4 +1,8 @@
-// Changelog entries shown in the gift popup. Newest first.
+// Changelog entries shown in the feedback modal. Newest first.
+// LATEST_VERSION is compared against localStorage 'skifree.changelogSeen'
+// to pulse the ? button when there's something new to look at.
+export const LATEST_VERSION = 'v0.2';
+
 export const CHANGELOG = [
   {
     version: 'v0.2 - playtest',

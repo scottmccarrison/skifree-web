@@ -3,7 +3,7 @@ import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
-import { CHANGELOG } from './changelog.js';
+import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -72,7 +72,30 @@ function closeFeedback() {
   fbModal.classList.add('hidden');
 }
 
-document.getElementById('help-btn').addEventListener('click', openFeedback);
+// "what's new" indicator: pulse the ? button until the user opens the modal
+// after a release. Tracked in localStorage by version string.
+const CHANGELOG_SEEN_KEY = 'skifree.changelogSeen';
+const helpBtn = document.getElementById('help-btn');
+function refreshChangelogBadge() {
+  const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
+  if (seen !== LATEST_VERSION) {
+    helpBtn.classList.add('has-update');
+    helpBtn.setAttribute('title', "what's new - tap to see updates");
+  } else {
+    helpBtn.classList.remove('has-update');
+    helpBtn.setAttribute('title', 'report a bug or suggestion');
+  }
+}
+function markChangelogSeen() {
+  localStorage.setItem(CHANGELOG_SEEN_KEY, LATEST_VERSION);
+  refreshChangelogBadge();
+}
+refreshChangelogBadge();
+
+document.getElementById('help-btn').addEventListener('click', () => {
+  openFeedback();
+  markChangelogSeen();
+});
 fbCancel.addEventListener('click', closeFeedback);
 fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
 fbText.addEventListener('keydown', (e) => e.stopPropagation());
