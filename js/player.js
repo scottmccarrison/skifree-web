@@ -6,6 +6,7 @@ export function createPlayer() {
     y: 0,             // vertical, increases as you ski down
     state: 'straight',
     crashTimer: 0,    // seconds remaining of crash recovery
+    airTime: 0,       // seconds remaining of jump (invulnerable + boosted)
     // Tight hit box centered on the skis' contact patch (not the whole body),
     // expressed as offsets from (x, y) and full width/height.
     hit: { dx: 0, dy: 8, w: 14, h: 10 },
@@ -29,6 +30,16 @@ const FORWARD_SPEED = {
 };
 
 const TUCK_SPEED = 290; // holding Down = head-down tuck for a speed boost
+const JUMP_DURATION = 0.7;
+const JUMP_SPEED_MULT = 1.45;
+
+export function launchJump(player) {
+  if (player.airTime <= 0) player.airTime = JUMP_DURATION;
+}
+
+export function isAirborne(player) {
+  return player.airTime > 0;
+}
 
 export function updatePlayer(player, input, dt, speedMult = 1) {
   if (player.crashTimer > 0) {
@@ -57,8 +68,12 @@ export function updatePlayer(player, input, dt, speedMult = 1) {
     else if (player.state === 'rightHard') player.state = 'rightEasy';
   }
 
+  // Tick airborne timer.
+  if (player.airTime > 0) player.airTime = Math.max(0, player.airTime - dt);
+
   const vx = TURN_SPEED_X[player.state] || 0;
-  const baseVy = input.down ? TUCK_SPEED : (FORWARD_SPEED[player.state] || 200);
+  let baseVy = input.down ? TUCK_SPEED : (FORWARD_SPEED[player.state] || 200);
+  if (player.airTime > 0) baseVy *= JUMP_SPEED_MULT;
   const vy = baseVy * speedMult;
 
   player.x += vx * dt;

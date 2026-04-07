@@ -1,5 +1,5 @@
 import {
-  drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump,
+  drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
   drawPlayer, drawYeti,
 } from './sprites.js';
 
@@ -9,6 +9,7 @@ const SPRITE_FNS = {
   mogul: drawMogul,
   rock: drawRock,
   stump: drawStump,
+  jump: drawJump,
 };
 
 export function render(ctx, viewport, game) {
@@ -55,9 +56,20 @@ export function render(ctx, viewport, game) {
     ctx.restore();
   }
 
-  // Player.
+  // Player. Lift off the ground + cast a shadow when airborne.
+  const airT = player.airTime;
+  const lift = airT > 0 ? Math.sin((1 - airT / 0.7) * Math.PI) * 18 : 0;
+  if (airT > 0) {
+    ctx.save();
+    ctx.translate(player.x - camX, player.y - camY + 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.save();
-  ctx.translate(player.x - camX, player.y - camY);
+  ctx.translate(player.x - camX, player.y - camY - lift);
   drawPlayer(ctx, player.state);
   ctx.restore();
 

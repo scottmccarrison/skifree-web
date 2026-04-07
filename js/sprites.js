@@ -55,6 +55,32 @@ export function drawRock(ctx) {
   ctx.stroke();
 }
 
+export function drawJump(ctx) {
+  // Snow ramp - lighter on the lit side, darker on the trailing edge.
+  ctx.fillStyle = '#dde9f5';
+  ctx.beginPath();
+  ctx.moveTo(-18, 6);
+  ctx.lineTo(18, 6);
+  ctx.lineTo(10, -8);
+  ctx.lineTo(-10, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#a9bccd';
+  ctx.beginPath();
+  ctx.moveTo(-18, 6);
+  ctx.lineTo(-10, -8);
+  ctx.lineTo(10, -8);
+  ctx.lineTo(8, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#6a7c8e';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-18, 6); ctx.lineTo(-10, -8);
+  ctx.moveTo(18, 6);  ctx.lineTo(10, -8);
+  ctx.stroke();
+}
+
 export function drawStump(ctx) {
   ctx.fillStyle = '#8b5a2b';
   ctx.beginPath();

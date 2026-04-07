@@ -1,4 +1,4 @@
-import { createPlayer, updatePlayer, crashPlayer } from './player.js';
+import { createPlayer, updatePlayer, crashPlayer, launchJump, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti } from './yeti.js';
 import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
@@ -52,10 +52,14 @@ export function updateGame(game, input, viewport, dt) {
     updateWorld(game.world, game.player, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
-    if (hit && hit.type.deadly && game.player.crashTimer <= 0) {
-      crashPlayer(game.player);
-      endRun(game);
-      return;
+    if (hit) {
+      if (hit.type.kind === 'jump') {
+        launchJump(game.player);
+      } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
+        crashPlayer(game.player);
+        endRun(game);
+        return;
+      }
     }
 
     const eaten = updateYeti(game.yeti, game.player, dt, difficulty);

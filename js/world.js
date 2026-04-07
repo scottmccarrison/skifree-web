@@ -17,6 +17,8 @@ const TYPES = [
     hit: { dx: 0, dy: 0,  w: 14, h: 8  } },
   { kind: 'mogul',     weight: 5, deadly: false,
     hit: { dx: 0, dy: 0,  w: 22, h: 8  } },
+  { kind: 'jump',      weight: 2, deadly: false,
+    hit: { dx: 0, dy: 0,  w: 28, h: 10 } },
 ];
 
 const TOTAL_WEIGHT = TYPES.reduce((s, t) => s + t.weight, 0);
