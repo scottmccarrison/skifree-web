@@ -28,6 +28,8 @@ const FORWARD_SPEED = {
   rightHard: 110,
 };
 
+const TUCK_SPEED = 290; // holding Down = head-down tuck for a speed boost
+
 export function updatePlayer(player, input, dt, speedMult = 1) {
   if (player.crashTimer > 0) {
     player.crashTimer -= dt;
@@ -56,7 +58,8 @@ export function updatePlayer(player, input, dt, speedMult = 1) {
   }
 
   const vx = TURN_SPEED_X[player.state] || 0;
-  const vy = (FORWARD_SPEED[player.state] || 200) * speedMult;
+  const baseVy = input.down ? TUCK_SPEED : (FORWARD_SPEED[player.state] || 200);
+  const vy = baseVy * speedMult;
 
   player.x += vx * dt;
   player.y += vy * dt;

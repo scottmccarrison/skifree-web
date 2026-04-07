@@ -1,7 +1,7 @@
 // Yeti: spawns after threshold, chases the player in 2D until contact.
 
-const SPAWN_AFTER_SECONDS = 25;
-const BASE_CHASE_SPEED = 250;
+const SPAWN_AFTER_SECONDS = 50;
+const BASE_CHASE_SPEED = 195;
 
 export function createYeti() {
   return {
@@ -25,9 +25,11 @@ export function updateYeti(yeti, player, dt, difficulty = 1) {
     return false;
   }
 
-  // Chase in 2D toward the player. Speed scales with difficulty so the yeti
-  // always eventually catches up no matter how the player runs.
-  const speed = BASE_CHASE_SPEED + difficulty * 40;
+  // Chase in 2D toward the player. Slightly slower than max straight skiing
+  // so a player going straight stays ahead - but turning, hitting moguls, or
+  // weaving around trees lets the yeti close the gap. Difficulty adds a small
+  // bonus so the chase tightens later in the run.
+  const speed = BASE_CHASE_SPEED + difficulty * 18;
   const dx = player.x - yeti.x;
   const dy = player.y - yeti.y;
   const dist = Math.hypot(dx, dy) || 1;
