@@ -2,9 +2,15 @@ name = "skifree-api"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
+# Tightened from /ski* to /ski + /ski/* so the wildcard does not capture
+# /skidev* (which is bound to a separate worker via wrangler.dev.toml).
 routes = [
-  { pattern = "mccarrison.me/ski*", zone_name = "mccarrison.me" },
+  { pattern = "mccarrison.me/ski", zone_name = "mccarrison.me" },
+  { pattern = "mccarrison.me/ski/*", zone_name = "mccarrison.me" },
 ]
+
+[vars]
+PATH_PREFIX = "/ski"
 
 # Static asset binding: serves the parent skifree-web directory at the
 # worker root, while the worker code itself handles /api/*.
