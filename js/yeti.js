@@ -3,9 +3,9 @@
 // sees the threat even on long runs.
 
 const SPAWN_AFTER_SECONDS = 35;
-const BASE_CHASE_SPEED = 215;     // straight player is 220 - going straight still escapes
-const FLYBY_INTERVAL_SEC = 22;
-const FLYBY_FAR_THRESHOLD = 800;  // only flyby if currently more than this far away
+const BASE_CHASE_SPEED = 200;     // straight player is 220 - going straight still escapes, weavers feel pressure
+const FLYBY_INTERVAL_SEC = 10;
+const FLYBY_FAR_THRESHOLD = 350;  // threshold in world units - any gap larger than this can trigger a flyby
 
 export function createYeti() {
   return {
@@ -24,9 +24,12 @@ export function updateYeti(yeti, player, dt, difficulty = 1) {
     yeti.spawnTimer += dt;
     if (yeti.spawnTimer >= SPAWN_AFTER_SECONDS) {
       yeti.active = true;
-      yeti.y = player.y - 600;
+      // Spawn closer so the yeti is visible/looming almost immediately
+      // instead of being offscreen for the first several seconds.
+      yeti.y = player.y - 400;
       yeti.x = player.x;
-      yeti.flybyTimer = 0;
+      // First flyby fires soon after spawn so the player notices it.
+      yeti.flybyTimer = FLYBY_INTERVAL_SEC * 0.55;
     }
     return false;
   }
