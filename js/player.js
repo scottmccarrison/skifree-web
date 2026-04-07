@@ -27,7 +27,7 @@ const FORWARD_SPEED = {
   rightHard: 110,
 };
 
-export function updatePlayer(player, input, dt) {
+export function updatePlayer(player, input, dt, speedMult = 1) {
   if (player.crashTimer > 0) {
     player.crashTimer -= dt;
     player.state = 'crashed';
@@ -55,7 +55,7 @@ export function updatePlayer(player, input, dt) {
   }
 
   const vx = TURN_SPEED_X[player.state] || 0;
-  const vy = FORWARD_SPEED[player.state] || 200;
+  const vy = (FORWARD_SPEED[player.state] || 200) * speedMult;
 
   player.x += vx * dt;
   player.y += vy * dt;

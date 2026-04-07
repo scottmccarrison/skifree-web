@@ -1,4 +1,7 @@
-// World: obstacles spawn ahead of player, despawn behind. AABB collision.
+// World: chunk-based obstacle spawning. The world is an infinite 2D grid of
+// chunks; whenever a chunk near the player hasn't been spawned yet, we fill it.
+
+const CHUNK = 200; // world units per chunk side
 
 const TYPES = [
   { kind: 'treeLarge', w: 36, h: 40, weight: 3, deadly: true },
@@ -22,34 +25,68 @@ function pickType() {
 export function createWorld() {
   return {
     obstacles: [],
-    spawnedTo: 0,    // y up to which we've spawned
-    rowHeight: 90,   // spacing between obstacle rows
-    halfWidth: 320,  // logical world half-width for spawning
+    spawnedChunks: new Set(), // "cx,cy" keys
   };
 }
 
-export function updateWorld(world, player, viewport) {
-  // Spawn obstacles ahead of player up to (player.y + lookahead).
-  const lookahead = viewport.h * 1.5;
-  const spawnUntil = player.y + lookahead;
+export function updateWorld(world, player, viewport, difficulty = 1) {
+  // Determine which chunks should be populated: a rectangle around the player
+  // that extends further down (where they're going) than up.
+  const halfW = Math.max(viewport.w, 700) + CHUNK;
+  const aheadH = viewport.h * 1.5 + CHUNK;
+  const behindH = viewport.h * 0.5 + CHUNK;
 
-  while (world.spawnedTo < spawnUntil) {
-    world.spawnedTo += world.rowHeight;
-    const count = 1 + Math.floor(Math.random() * 3); // 1-3 per row
-    for (let i = 0; i < count; i++) {
-      const t = pickType();
-      world.obstacles.push({
-        type: t,
-        x: (Math.random() * 2 - 1) * world.halfWidth,
-        y: world.spawnedTo + (Math.random() - 0.5) * world.rowHeight * 0.8,
-      });
+  const cx0 = Math.floor((player.x - halfW) / CHUNK);
+  const cx1 = Math.floor((player.x + halfW) / CHUNK);
+  const cy0 = Math.floor((player.y - behindH) / CHUNK);
+  const cy1 = Math.floor((player.y + aheadH) / CHUNK);
+
+  for (let cy = cy0; cy <= cy1; cy++) {
+    // Don't spawn obstacles in the player's starting safe zone.
+    for (let cx = cx0; cx <= cx1; cx++) {
+      const key = cx + ',' + cy;
+      if (world.spawnedChunks.has(key)) continue;
+      world.spawnedChunks.add(key);
+      spawnChunk(world, cx, cy, difficulty);
     }
   }
 
-  // Despawn anything well above the player.
-  const cullY = player.y - viewport.h;
-  if (world.obstacles.length > 0 && world.obstacles[0].y < cullY) {
-    world.obstacles = world.obstacles.filter(o => o.y >= cullY);
+  // Cull obstacles far outside the active region.
+  const cullW = halfW + CHUNK;
+  const cullTop = player.y - viewport.h - CHUNK;
+  world.obstacles = world.obstacles.filter(o =>
+    o.y >= cullTop && Math.abs(o.x - player.x) <= cullW
+  );
+
+  // Also forget chunks that are far away so memory doesn't grow forever.
+  if (world.spawnedChunks.size > 2000) {
+    const keep = new Set();
+    for (let cy = cy0 - 2; cy <= cy1 + 2; cy++) {
+      for (let cx = cx0 - 2; cx <= cx1 + 2; cx++) {
+        const key = cx + ',' + cy;
+        if (world.spawnedChunks.has(key)) keep.add(key);
+      }
+    }
+    world.spawnedChunks = keep;
+  }
+}
+
+function spawnChunk(world, cx, cy, difficulty) {
+  // Player starts at (0, 0). Keep the very first chunks empty so they
+  // can't crash on spawn.
+  if (cy <= 0 && Math.abs(cx) <= 1) return;
+
+  const x0 = cx * CHUNK;
+  const y0 = cy * CHUNK;
+  // ~2-5 obstacles per chunk depending on difficulty.
+  const count = 2 + Math.floor(Math.random() * (2 + difficulty));
+  for (let i = 0; i < count; i++) {
+    const t = pickType();
+    world.obstacles.push({
+      type: t,
+      x: x0 + Math.random() * CHUNK,
+      y: y0 + Math.random() * CHUNK,
+    });
   }
 }
 

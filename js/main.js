@@ -1,6 +1,7 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame } from './game.js';
+import { createGame, updateGame, loadLeaderboard } from './game.js';
 import { render } from './render.js';
+import { getStoredName, setStoredName } from './leaderboard.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -25,6 +26,15 @@ resize();
 
 initInput();
 const game = createGame();
+
+// Name input wiring.
+const nameInput = document.getElementById('name-input');
+nameInput.value = getStoredName();
+nameInput.addEventListener('input', () => setStoredName(nameInput.value));
+// Stop key events on the name input from steering the skier.
+nameInput.addEventListener('keydown', (e) => e.stopPropagation());
+
+loadLeaderboard(game);
 
 let last = performance.now();
 function frame(now) {

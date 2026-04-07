@@ -76,10 +76,10 @@ export function drawPlayer(ctx, state) {
   }
   const skiAngle = {
     straight: 0,
-    leftEasy: -0.25,
-    leftHard: -0.7,
-    rightEasy: 0.25,
-    rightHard: 0.7,
+    leftEasy: 0.25,
+    leftHard: 0.7,
+    rightEasy: -0.25,
+    rightHard: -0.7,
   }[state] ?? 0;
 
   // Skis.

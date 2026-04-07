@@ -1,0 +1,23 @@
+{
+  "name": "skifree-web",
+  "version": "1.0.0",
+  "description": "Browser homage to the classic SkiFree. Vanilla HTML/Canvas/JS, no build step.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scottmccarrison/skifree-web.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/scottmccarrison/skifree-web/issues"
+  },
+  "homepage": "https://github.com/scottmccarrison/skifree-web#readme",
+  "devDependencies": {
+    "wrangler": "^4.80.0"
+  }
+}

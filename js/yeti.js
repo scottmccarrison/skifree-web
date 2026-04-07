@@ -1,7 +1,7 @@
-// Yeti: spawns after threshold, chases until contact = game over.
+// Yeti: spawns after threshold, chases the player in 2D until contact.
 
 const SPAWN_AFTER_SECONDS = 25;
-const CHASE_SPEED = 260; // a bit faster than max player forward speed
+const BASE_CHASE_SPEED = 250;
 
 export function createYeti() {
   return {
@@ -14,22 +14,25 @@ export function createYeti() {
   };
 }
 
-export function updateYeti(yeti, player, dt) {
+export function updateYeti(yeti, player, dt, difficulty = 1) {
   if (!yeti.active) {
     yeti.spawnTimer += dt;
     if (yeti.spawnTimer >= SPAWN_AFTER_SECONDS) {
       yeti.active = true;
-      yeti.y = player.y - 600; // start above the screen
+      yeti.y = player.y - 600;
       yeti.x = player.x;
     }
     return false;
   }
 
-  // Chase the player. Move y toward player.y at CHASE_SPEED, ease x.
+  // Chase in 2D toward the player. Speed scales with difficulty so the yeti
+  // always eventually catches up no matter how the player runs.
+  const speed = BASE_CHASE_SPEED + difficulty * 40;
+  const dx = player.x - yeti.x;
   const dy = player.y - yeti.y;
-  const sgn = Math.sign(dy);
-  yeti.y += sgn * CHASE_SPEED * dt;
-  yeti.x += (player.x - yeti.x) * Math.min(1, dt * 1.5);
+  const dist = Math.hypot(dx, dy) || 1;
+  yeti.x += (dx / dist) * speed * dt;
+  yeti.y += (dy / dist) * speed * dt;
 
   // Contact check (AABB).
   const px0 = player.x - 9, px1 = player.x + 9;

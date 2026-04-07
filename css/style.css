@@ -62,3 +62,24 @@ html, body {
   background: rgba(120, 180, 255, 0.7);
   transform: scale(0.95);
 }
+
+#name-input {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 140px;
+  padding: 6px 10px;
+  border: 2px solid rgba(26, 26, 26, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+  font: 14px -apple-system, system-ui, sans-serif;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#name-input:focus {
+  border-color: rgba(26, 26, 26, 0.9);
+  background: #fff;
+}
