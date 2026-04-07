@@ -3,6 +3,37 @@ import {
   drawPlayer, drawYeti,
 } from './sprites.js';
 import { getStoredName } from './leaderboard.js';
+import { colorForIndex } from './colors.js';
+
+let _spriteCanvas = null;
+function getSpriteCanvas() {
+  if (!_spriteCanvas) {
+    _spriteCanvas = document.createElement('canvas');
+    _spriteCanvas.width = 60;
+    _spriteCanvas.height = 60;
+  }
+  return _spriteCanvas;
+}
+
+function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha) {
+  const sc = getSpriteCanvas();
+  const sctx = sc.getContext('2d');
+  sctx.clearRect(0, 0, sc.width, sc.height);
+  sctx.save();
+  sctx.translate(sc.width / 2, sc.height / 2);
+  drawPlayer(sctx, state);
+  sctx.restore();
+  sctx.save();
+  sctx.globalCompositeOperation = 'source-atop';
+  sctx.fillStyle = color;
+  sctx.globalAlpha = 0.5;
+  sctx.fillRect(0, 0, sc.width, sc.height);
+  sctx.restore();
+  ctx.save();
+  if (typeof alpha === 'number') ctx.globalAlpha = alpha;
+  ctx.drawImage(sc, screenX - sc.width / 2, screenY - sc.height / 2);
+  ctx.restore();
+}
 
 const LEGEND = [
   { draw: drawTreeLarge, label: 'tree - CRASH' },
@@ -137,20 +168,23 @@ export function render(ctx, viewport, game) {
     ctx.fill();
     ctx.restore();
   }
-  ctx.save();
-  ctx.translate(player.x - camX, player.y - camY - lift);
-  drawPlayer(ctx, player.state);
-  ctx.restore();
+  if (game.mode === 'mp') {
+    const localColor = colorForIndex(game.localColor != null ? game.localColor : 0);
+    drawTintedPlayerAt(ctx, player.x - camX, player.y - camY - lift, player.state, localColor, 1.0);
+  } else {
+    ctx.save();
+    ctx.translate(player.x - camX, player.y - camY - lift);
+    drawPlayer(ctx, player.state);
+    ctx.restore();
+  }
 
-  // Remote skiers (multiplayer): translucent overlay per peer.
+  // Remote skiers (multiplayer): tinted translucent overlay per peer.
   if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
     for (const remote of game.remotes.values()) {
       const lr = lerpRemote(remote);
-      ctx.save();
-      ctx.globalAlpha = remote.alive ? 0.55 : 0.25;
-      ctx.translate(lr.x - camX, lr.y - camY);
-      drawPlayer(ctx, remote.state || 'straight');
-      ctx.restore();
+      const color = colorForIndex(remote.color);
+      const alpha = remote.alive ? 0.55 : 0.25;
+      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha);
     }
   }
 
@@ -171,14 +205,45 @@ export function render(ctx, viewport, game) {
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
   ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
-  if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
-    const first = game.remotes.values().next().value;
-    if (first) {
-      const pname = (first.name || 'P2').slice(0, 14);
-      const pscore = Math.floor(first.score || 0);
-      const aliveTag = first.alive ? '' : ' (out)';
-      ctx.fillText(`P2: ${pname} ${pscore} m${aliveTag}`, 16, 78);
+  if (game.mode === 'mp' && game.remotes) {
+    const all = [];
+    all.push({
+      name: 'YOU',
+      color: game.localColor != null ? game.localColor : 0,
+      score: Math.floor(game.score || 0),
+      alive: !game.spectating && game.player.state !== 'crashed',
+    });
+    for (const r of game.remotes.values()) {
+      all.push({
+        name: r.name || `anon${r.id}`,
+        color: r.color,
+        score: Math.floor(r.score || 0),
+        alive: r.alive,
+      });
     }
+    all.sort((a, b) => b.score - a.score);
+    const startX = 16;
+    const startY = 78;
+    const rowH = 14;
+    ctx.save();
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i < all.length; i++) {
+      const p = all[i];
+      const y = startY + i * rowH;
+      ctx.fillStyle = colorForIndex(p.color);
+      ctx.fillRect(startX, y + 2, 10, 10);
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(startX + 0.5, y + 2.5, 9, 9);
+      ctx.fillStyle = p.alive ? (inverted ? '#f4faff' : '#1a1a1a') : '#888';
+      const nm = p.name.length > 8 ? p.name.slice(0, 8) : p.name;
+      let label = `${nm} ${p.score}`;
+      if (!p.alive) label += ' x';
+      ctx.fillText(label, startX + 16, y);
+    }
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
   }
 
   // State overlays.

@@ -427,6 +427,7 @@ window.startMultiplayerGame = function(seed, session) {
   game.mode = 'mp';
   game.session = session;
   game.isHost = !!session.isHost;
+  game.localColor = session.color;
   game.remotes = new Map();
   for (const p of (session.roster || [])) {
     if (p.id === session.id) continue;
