@@ -41,12 +41,14 @@ function pickHint() {
   return HINTS[Math.floor(Math.random() * HINTS.length)];
 }
 
-export function createGame() {
+export function createGame(seed) {
+  const gameSeed = (seed === undefined ? Date.now() : seed) >>> 0;
   return {
     state: 'title', // 'title' | 'playing' | 'gameover'
+    seed: gameSeed,
     player: createPlayer(),
-    world: createWorld(),
-    yeti: createYeti(),
+    world: createWorld(gameSeed),
+    yeti: createYeti(gameSeed),
     score: 0,
     startY: 0,
     elapsed: 0,
@@ -137,7 +139,7 @@ export function updateGame(game, input, viewport, dt) {
 
 function startRun(game) {
   game.player = createPlayer();
-  game.world = createWorld();
+  game.world = createWorld(game.seed);
   resetYeti(game.yeti);
   game.score = 0;
   game.startY = 0;
