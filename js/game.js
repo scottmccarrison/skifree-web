@@ -1,6 +1,6 @@
 import { createPlayer, updatePlayer, crashPlayer, launchJump, launchHop, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
-import { createYeti, updateYeti, resetYeti } from './yeti.js';
+import { createYeti, updateYeti, resetYeti, checkYetiCollision } from './yeti.js';
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
 
@@ -60,6 +60,16 @@ export function createGame(seed) {
     leaderboardLoading: false,
     leaderboardTab: 'daily',  // 'daily' | 'alltime' | 'you'
     personalBests: getPersonalBests(),
+    // Multiplayer (defaults are solo-safe)
+    mode: 'solo',          // 'solo' | 'mp'
+    session: null,
+    isHost: true,
+    remote: null,
+    remoteYeti: null,
+    spectating: false,
+    lastSentT: 0,
+    seq: 0,
+    peerLeft: false,
   };
 }
 
@@ -116,10 +126,43 @@ export function updateGame(game, input, viewport, dt) {
       }
     }
 
-    const eaten = updateYeti(game.yeti, game.player, dt, difficulty);
-    if (eaten) {
-      endRun(game);
-      return;
+    if (game.mode !== 'mp' || game.isHost) {
+      const eaten = updateYeti(game.yeti, game.player, dt, difficulty);
+      if (eaten) {
+        endRun(game);
+        return;
+      }
+    } else {
+      // Non-host MP: yeti position is driven by network messages.
+      // Still run an identical collision check locally so deaths are responsive.
+      if (checkYetiCollision(game.yeti, game.player)) {
+        crashPlayer(game.player);
+        endRun(game);
+        return;
+      }
+    }
+
+    // 10Hz state broadcast (host and joiner both send their own player state).
+    if (game.mode === 'mp' && game.session && !game.spectating && !game.peerLeft) {
+      game.lastSentT += dt;
+      if (game.lastSentT >= 0.1) {
+        game.lastSentT = 0;
+        const payload = {
+          x: game.player.x,
+          y: game.player.y,
+          state: game.player.state,
+          score: game.score,
+          seq: game.seq++,
+        };
+        if (game.isHost) {
+          payload.yeti = {
+            active: game.yeti.active,
+            x: game.yeti.x,
+            y: game.yeti.y,
+          };
+        }
+        game.session.sendState(payload);
+      }
     }
 
     game.score = Math.max(0, (game.player.y - game.startY) / 10);
@@ -152,11 +195,22 @@ export function forceEndRun(game) {
 }
 
 function endRun(game) {
+  // Multiplayer: if the peer is still alive, become a spectator instead of
+  // ending the run. We notify the peer of our death and stop sending state.
+  if (game.mode === 'mp' && game.session && game.remote && game.remote.alive && !game.peerLeft) {
+    game.spectating = true;
+    try { game.session.sendDied(); } catch {}
+    return;
+  }
+
   game.state = 'gameover';
   game.hint = pickHint();
   game.deathCount += 1;
   localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
   localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+
+  // Leaderboard submission is suppressed entirely in multiplayer.
+  if (game.mode === 'mp') return;
 
   const finalScore = Math.floor(game.score);
   const name = getStoredName().trim() || 'anon';

@@ -62,7 +62,13 @@ export function updateYeti(yeti, player, dt, difficulty = 1) {
     yeti.y = player.y - 300;
   }
 
-  // Contact check (AABB).
+  return checkYetiCollision(yeti, player);
+}
+
+// Exact AABB used by updateYeti, exported so non-host MP clients can run the
+// same collision check against a network-driven yeti position.
+export function checkYetiCollision(yeti, player) {
+  if (!yeti.active) return false;
   const px0 = player.x - 9, px1 = player.x + 9;
   const py0 = player.y, py1 = player.y + 28;
   const yx0 = yeti.x - yeti.width / 2, yx1 = yeti.x + yeti.width / 2;
