@@ -160,7 +160,7 @@ export function updateGame(game, input, viewport, dt) {
     }
 
     // 10Hz state broadcast (host and joiner both send their own player state).
-    if (game.mode === 'mp' && game.session && !game.spectating && !game.peerLeft) {
+    if (game.mode === 'mp' && game.session && !game.peerLeft) {
       game.lastSentT += dt;
       if (game.lastSentT >= 0.1) {
         game.lastSentT = 0;
@@ -215,6 +215,7 @@ export function pickSlowestAlive(game) {
   if (game.remotes) {
     for (const r of game.remotes.values()) {
       if (!r.alive) continue;
+      if (!r.lastT || r.lastT === 0) continue;  // Skip uninitialized remotes
       if (!slowest || r.y < slowest.y) slowest = r;
     }
   }

@@ -67,6 +67,15 @@ export class Room {
       return new Response('room full', { status: 409 });
     }
 
+    // Lazy-restore started flag from storage
+    if (this.started === false) {
+      const persistedStarted = await this.state.storage.get('started');
+      if (persistedStarted) this.started = true;
+    }
+    if (this.started) {
+      return new Response('room in progress', { status: 409 });
+    }
+
     // Compute lowest unused color from existing sockets BEFORE accepting new one
     const usedColors = new Set();
     for (const ws of existing) {
@@ -147,6 +156,7 @@ export class Room {
           this.seed = newSeed;
           await this.state.storage.put('seed', newSeed);
           this.started = true;
+          await this.state.storage.put('started', true);
           await this.state.storage.deleteAlarm();
           this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
         }

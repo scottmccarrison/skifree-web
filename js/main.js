@@ -214,6 +214,7 @@ function syncTouchZones() {
 
 // Multiplayer lobby modal wiring.
 let mpSession = null;
+let mpKickedFlag = false;
 
 function renderLobby() {
   if (!mpSession) return;
@@ -403,9 +404,13 @@ function wireMpSession() {
     }
   });
   mpSession.on('error', () => {
-    setMpStatus('Connection error');
+    setMpStatus('Could not join room');
+    document.getElementById('mp-host').disabled = false;
+    document.getElementById('mp-join-go').disabled = false;
+    document.getElementById('mp-code-input').disabled = false;
   });
   mpSession.on('close', () => {
+    if (mpKickedFlag) { mpKickedFlag = false; return; }
     if (!document.getElementById('mp-modal').classList.contains('hidden')) {
       setMpStatus('Disconnected');
     }
@@ -535,6 +540,7 @@ window.startMultiplayerGame = function(seed, session) {
     }
   });
   session.on('kicked', () => {
+    mpKickedFlag = true;
     try { session.close(); } catch {}
     game = createGame();
     game.state = 'title';
