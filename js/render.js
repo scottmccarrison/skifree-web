@@ -285,7 +285,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     const tabs = [
       { key: 'daily',   label: 'DAILY' },
       { key: 'alltime', label: 'ALL TIME' },
-      { key: 'you',     label: 'YOU' },
+      { key: 'you',     label: 'PERSONAL' },
     ];
     const tabW = (w - 32) / tabs.length;
     const tabY = y;
