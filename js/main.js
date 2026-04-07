@@ -127,7 +127,8 @@ fbSend.addEventListener('click', async () => {
   fbCancel.disabled = true;
   fbStatus.textContent = 'sending...';
   try {
-    const apiBase = location.pathname.startsWith('/ski') ? '/ski/api' : '/api';
+    const seg = location.pathname.split('/')[1] || '';
+    const apiBase = (seg === 'ski' || seg === 'skidev') ? `/${seg}/api` : '/api';
     const r = await fetch(`${apiBase}/feedback`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
