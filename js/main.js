@@ -4,6 +4,7 @@ import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
+import { createSession } from './net.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -139,7 +140,7 @@ document.getElementById('title-button').addEventListener('click', () => {
 window.addEventListener('pointerup', (e) => {
   if (game.state === 'playing') return;
   // Don't hijack interactions with real DOM controls.
-  if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #changelog-modal, #title-button')) return;
+  if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #mp-modal, #changelog-modal, #title-button')) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -157,6 +158,9 @@ function handleHit(r) {
     setLeaderboardTab(game, r.data);
   } else if (r.action === 'openChangelog') {
     openChangelog();
+  } else if (r.action === 'multiplayer') {
+    openMpModal();
+    return;
   } else if (r.action === 'restart') {
     // Pulse the input.restart flag for one frame so updateGame's existing
     // title/gameover handler picks it up and starts a run.
@@ -200,6 +204,114 @@ function syncTouchZones() {
   if (!touchZonesEl) return;
   touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
 }
+
+// Multiplayer lobby modal wiring.
+let mpSession = null;
+
+function openMpModal() {
+  showMpStage('choose');
+  document.getElementById('mp-modal').classList.remove('hidden');
+}
+function closeMpModal() {
+  document.getElementById('mp-modal').classList.add('hidden');
+  if (mpSession && !mpSession.closed) { mpSession.close(); }
+  mpSession = null;
+}
+function showMpStage(stage) {
+  ['choose', 'join', 'lobby'].forEach(s => {
+    const el = document.getElementById('mp-stage-' + s);
+    if (!el) return;
+    if (s === stage) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+}
+function setMpStatus(text) {
+  const el = document.getElementById('mp-status');
+  if (el) el.textContent = text;
+}
+function showLobbyStage(code) {
+  showMpStage('lobby');
+  document.getElementById('mp-code-display').textContent = code;
+  setMpStatus('Waiting for friend...');
+  document.getElementById('mp-ready').disabled = true;
+}
+
+async function startHost() {
+  try {
+    mpSession = createSession();
+    wireMpSession();
+    const code = await mpSession.host();
+    showLobbyStage(code);
+  } catch (err) {
+    setMpStatus('Failed to host: ' + err.message);
+  }
+}
+
+function startJoin() {
+  showMpStage('join');
+  setTimeout(() => document.getElementById('mp-code-input').focus(), 50);
+}
+
+function commitJoin() {
+  const code = (document.getElementById('mp-code-input').value || '').toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(code)) {
+    setMpStatus('Code must be 4 letters');
+    return;
+  }
+  mpSession = createSession();
+  wireMpSession();
+  mpSession.join(code);
+  showLobbyStage(code);
+}
+
+function wireMpSession() {
+  mpSession.on('welcome', () => {
+    if (mpSession.peer) {
+      setMpStatus(`Joined ${mpSession.peer.name}'s run`);
+      document.getElementById('mp-ready').disabled = false;
+    }
+  });
+  mpSession.on('peerJoined', e => {
+    setMpStatus(`${e.name} joined - ready up!`);
+    document.getElementById('mp-ready').disabled = false;
+  });
+  mpSession.on('peerReady', () => {
+    setMpStatus('Friend is ready...');
+  });
+  mpSession.on('start', e => {
+    document.getElementById('mp-modal').classList.add('hidden');
+    if (typeof window.startMultiplayerGame === 'function') {
+      window.startMultiplayerGame(mpSession.seed, mpSession);
+    } else {
+      console.warn('[mp] startMultiplayerGame not yet implemented (WS4)');
+    }
+  });
+  mpSession.on('peerLeft', () => {
+    setMpStatus('Friend left');
+    document.getElementById('mp-ready').disabled = true;
+  });
+  mpSession.on('error', () => {
+    setMpStatus('Connection error');
+  });
+  mpSession.on('close', () => {
+    if (!document.getElementById('mp-modal').classList.contains('hidden')) {
+      setMpStatus('Disconnected');
+    }
+  });
+}
+
+document.getElementById('mp-host').addEventListener('click', startHost);
+document.getElementById('mp-join').addEventListener('click', startJoin);
+document.getElementById('mp-join-go').addEventListener('click', commitJoin);
+document.getElementById('mp-ready').addEventListener('click', () => {
+  if (mpSession) {
+    mpSession.sendReady();
+    setMpStatus("You're ready - waiting on friend...");
+    document.getElementById('mp-ready').disabled = true;
+  }
+});
+document.getElementById('mp-cancel').addEventListener('click', closeMpModal);
+document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
 
 let last = performance.now();
 function frame(now) {
