@@ -18,7 +18,7 @@ export const hitRegions = [];
 
 export function render(ctx, viewport, game) {
   hitRegions.length = 0;
-  const { player, world, yeti, state, score, highScore } = game;
+  const { player, world, yeti, state, score, highScore, deathCount } = game;
 
   // Stage progression: every 1000m the snow gets darker. After stage 5, the
   // background is black and we invert the whole scene for a "night mode" feel.
@@ -96,6 +96,7 @@ export function render(ctx, viewport, game) {
   ctx.fillText(`${Math.floor(score)} m`, 16, 28);
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
+  ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
 
   // State overlays.
   if (state === 'title') {
