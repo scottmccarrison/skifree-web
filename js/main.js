@@ -1,6 +1,6 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun } from './game.js';
-import { render } from './render.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab } from './game.js';
+import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 
@@ -109,6 +109,37 @@ fbSend.addEventListener('click', async () => {
 document.getElementById('title-button').addEventListener('click', () => {
   forceEndRun(game);
 });
+
+// Canvas click - dispatch to UI hit regions registered each frame by render().
+// Only active on title/gameover screens; during play, clicks are absorbed by
+// touch zones which sit above the canvas.
+canvas.addEventListener('click', (e) => {
+  if (game.state === 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  for (const r of hitRegions) {
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+      handleHit(r);
+      e.stopPropagation();
+      return;
+    }
+  }
+});
+
+function handleHit(r) {
+  if (r.action === 'setTab') {
+    setLeaderboardTab(game, r.data);
+  } else if (r.action === 'openChangelog') {
+    openChangelog();
+  }
+}
+
+// Changelog modal handle (filled in by commit 8).
+function openChangelog() {
+  const m = document.getElementById('changelog-modal');
+  if (m) m.classList.remove('hidden');
+}
 
 let last = performance.now();
 function frame(now) {

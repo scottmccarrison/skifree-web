@@ -12,7 +12,12 @@ const SPRITE_FNS = {
   jump: drawJump,
 };
 
+// Hit regions registered each frame so the canvas click handler in main.js
+// can map clicks to UI actions. Each entry: {x, y, w, h, action, data}.
+export const hitRegions = [];
+
 export function render(ctx, viewport, game) {
+  hitRegions.length = 0;
   const { player, world, yeti, state, score, highScore } = game;
 
   // Stage progression: every 1000m the snow gets darker. After stage 5, the
@@ -94,26 +99,61 @@ export function render(ctx, viewport, game) {
 
   // State overlays.
   if (state === 'title') {
-    drawCenteredPanel(ctx, viewport, {
+    drawCenteredPanel(ctx, viewport, game, {
       title: 'SKI FREE',
       hint: game.hint,
       lines: ['', game.controlHint],
-      leaderboard: game.leaderboard,
     });
   } else if (state === 'gameover') {
-    drawCenteredPanel(ctx, viewport, {
+    drawCenteredPanel(ctx, viewport, game, {
       title: 'GAME OVER',
       hint: game.hint,
       lines: [`${Math.floor(score)} m`, '', game.controlHint],
-      leaderboard: game.leaderboard,
     });
   }
 }
 
-function drawCenteredPanel(ctx, viewport, panel) {
-  const { title, hint, lines, leaderboard } = panel;
-  const lbRows = leaderboard ? Math.min(10, leaderboard.length) : 0;
-  const lbHeight = leaderboard ? 28 + lbRows * 18 : 0;
+function formatResetIn(ms) {
+  if (ms <= 0) return 'resetting...';
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `resets in ${h}h ${m}m`;
+}
+
+function drawCenteredPanel(ctx, viewport, game, panel) {
+  const { title, hint, lines } = panel;
+  const board = game.leaderboard;
+  const tab = game.leaderboardTab || 'daily';
+
+  // Determine which rows to render based on the active tab.
+  let rows = [];
+  let emptyText = 'be the first!';
+  let footer = '';
+  let topEverHeader = null;
+  if (board) {
+    if (tab === 'daily') {
+      rows = board.daily || [];
+      if (board.resetsAt) footer = formatResetIn(board.resetsAt - Date.now());
+      emptyText = 'no runs today - go!';
+    } else if (tab === 'alltime') {
+      rows = board.alltime || [];
+      if (board.topEver) {
+        topEverHeader = board.topEver;
+      }
+    } else if (tab === 'you') {
+      rows = (game.personalBests || []).map(pb => ({
+        name: 'you',
+        score: pb.score,
+        created_at: pb.at,
+      }));
+      emptyText = 'no personal bests yet';
+    }
+  }
+
+  const lbRows = Math.min(10, rows.length);
+  const tabsHeight = board ? 30 : 0;
+  const headerHeight = topEverHeader ? 22 : 0;
+  const lbHeight = board ? tabsHeight + headerHeight + 18 + lbRows * 18 + (footer ? 18 : 0) + 8 : 0;
   const hintHeight = hint ? 28 : 0;
 
   const cx = viewport.w / 2;
@@ -150,29 +190,70 @@ function drawCenteredPanel(ctx, viewport, panel) {
     y += 22;
   }
 
-  if (leaderboard) {
-    y += 8;
-    ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
-    ctx.fillText('TOP 10', cx, y);
-    y += 18;
+  if (board) {
+    y += 4;
+    // Tabs.
+    const tabs = [
+      { key: 'daily',   label: 'DAILY' },
+      { key: 'alltime', label: 'ALL TIME' },
+      { key: 'you',     label: 'YOU' },
+    ];
+    const tabW = (w - 32) / tabs.length;
+    const tabY = y;
+    ctx.font = 'bold 12px -apple-system, system-ui, sans-serif';
+    for (let i = 0; i < tabs.length; i++) {
+      const t = tabs[i];
+      const tx = cx - w/2 + 16 + i * tabW;
+      const active = t.key === tab;
+      ctx.fillStyle = active ? '#1a1a1a' : 'rgba(0,0,0,0.08)';
+      ctx.fillRect(tx + 2, tabY, tabW - 4, 22);
+      ctx.fillStyle = active ? '#fff' : '#1a1a1a';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.label, tx + tabW/2, tabY + 15);
+      hitRegions.push({
+        x: tx + 2, y: tabY, w: tabW - 4, h: 22,
+        action: 'setTab', data: t.key,
+      });
+    }
+    ctx.fillStyle = '#1a1a1a';
+    y += tabsHeight;
+
+    // All-time tab: persistent top-ever crown header.
+    if (topEverHeader && tab === 'alltime') {
+      ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      const name = (topEverHeader.name || 'anon').slice(0, 14);
+      ctx.fillText(`top: ${name} - ${topEverHeader.score} m`, cx, y + 14);
+      y += headerHeight;
+    }
+
     ctx.font = '13px ui-monospace, Menlo, Consolas, monospace';
     ctx.textAlign = 'left';
     const colLeft = cx - w/2 + 24;
     const colRight = cx + w/2 - 24;
+    y += 4;
     for (let i = 0; i < lbRows; i++) {
-      const row = leaderboard[i];
+      const row = rows[i];
       const rank = String(i + 1).padStart(2, ' ');
       const name = (row.name || 'anon').slice(0, 14);
       const sc = `${row.score} m`;
-      ctx.fillText(`${rank}. ${name}`, colLeft, y);
+      ctx.fillText(`${rank}. ${name}`, colLeft, y + 14);
       ctx.textAlign = 'right';
-      ctx.fillText(sc, colRight, y);
+      ctx.fillText(sc, colRight, y + 14);
       ctx.textAlign = 'left';
       y += 18;
     }
     if (lbRows === 0) {
       ctx.textAlign = 'center';
-      ctx.fillText('be the first!', cx, y);
+      ctx.fillText(emptyText, cx, y + 14);
+      y += 18;
+    }
+    if (footer) {
+      ctx.textAlign = 'center';
+      ctx.font = 'italic 11px -apple-system, system-ui, sans-serif';
+      ctx.fillStyle = '#555';
+      ctx.fillText(footer, cx, y + 14);
+      ctx.fillStyle = '#1a1a1a';
     }
     ctx.textAlign = 'center';
   }

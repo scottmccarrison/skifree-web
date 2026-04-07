@@ -24,6 +24,9 @@ export default {
     if (path === '/api/leaderboard' && request.method === 'GET') {
       return getLeaderboard(env);
     }
+    if (path === '/api/leaderboard/v2' && request.method === 'GET') {
+      return getLeaderboardV2(env);
+    }
     if (path === '/api/score' && request.method === 'POST') {
       return postScore(request, env);
     }
@@ -50,6 +53,42 @@ async function getLeaderboard(env) {
   return json({ scores: results || [] });
 }
 
+// v2: returns daily (since UTC midnight), all-time top 10, persistent
+// top score ever, and the next reset timestamp.
+async function getLeaderboardV2(env) {
+  const now = new Date();
+  const utcMidnight = Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+  );
+  const nextResetMs = utcMidnight + 24 * 60 * 60 * 1000;
+
+  const [dailyRes, allRes, topRes] = await Promise.all([
+    env.DB.prepare(
+      `SELECT name, score, created_at FROM scores
+        WHERE created_at >= ?
+        ORDER BY score DESC LIMIT 10`
+    ).bind(utcMidnight).all(),
+    env.DB.prepare(
+      `SELECT name, score, created_at FROM scores
+        ORDER BY score DESC LIMIT 10`
+    ).all(),
+    env.DB.prepare(
+      `SELECT name, score, created_at FROM scores
+        ORDER BY score DESC LIMIT 1`
+    ).all(),
+  ]);
+
+  return json({
+    // v1 compat: old clients read `scores` and ignore the rest.
+    scores: allRes.results || [],
+    daily: dailyRes.results || [],
+    alltime: allRes.results || [],
+    topEver: (topRes.results && topRes.results[0]) || null,
+    resetsAt: nextResetMs,
+    serverNow: Date.now(),
+  });
+}
+
 async function postScore(request, env) {
   let body;
   try {
@@ -68,7 +107,7 @@ async function postScore(request, env) {
     `INSERT INTO scores (name, score, created_at) VALUES (?, ?, ?)`
   ).bind(name, score, Date.now()).run();
 
-  return getLeaderboard(env);
+  return getLeaderboardV2(env);
 }
 
 async function postFeedback(request, env) {

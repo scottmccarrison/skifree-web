@@ -1,7 +1,7 @@
 import { createPlayer, updatePlayer, crashPlayer, launchJump, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti } from './yeti.js';
-import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
+import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
@@ -52,17 +52,25 @@ export function createGame() {
     highScore: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
     controlHint: 'press any key or tap to start',
     hint: pickHint(),
-    leaderboard: null,        // array of {name, score, created_at} or null
+    leaderboard: null,        // normalized board: {daily, alltime, topEver, resetsAt, serverNow} or null
     leaderboardLoading: false,
+    leaderboardTab: 'daily',  // 'daily' | 'alltime' | 'you'
+    personalBests: getPersonalBests(),
   };
 }
 
 export function loadLeaderboard(game) {
   game.leaderboardLoading = true;
-  fetchLeaderboard().then(scores => {
+  fetchLeaderboard().then(board => {
     game.leaderboardLoading = false;
-    if (scores) game.leaderboard = scores;
+    if (board) game.leaderboard = board;
   });
+}
+
+export function setLeaderboardTab(game, tab) {
+  if (tab === 'daily' || tab === 'alltime' || tab === 'you') {
+    game.leaderboardTab = tab;
+  }
 }
 
 export function updateGame(game, input, viewport, dt) {
@@ -141,11 +149,12 @@ function endRun(game) {
 
   const finalScore = Math.floor(game.score);
   const name = getStoredName().trim() || 'anon';
+  game.personalBests = recordPersonalBest(finalScore);
   if (finalScore > 0) {
     game.leaderboardLoading = true;
-    submitScore(name, finalScore).then(scores => {
+    submitScore(name, finalScore).then(board => {
       game.leaderboardLoading = false;
-      if (scores) game.leaderboard = scores;
+      if (board) game.leaderboard = board;
     });
   }
 }
