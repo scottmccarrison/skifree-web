@@ -215,12 +215,16 @@ function syncTouchZones() {
 // Multiplayer lobby modal wiring.
 let mpSession = null;
 let mpKickedFlag = false;
+// Tracks whether the MP gameover modal has been shown for the current
+// gameover transition. Reset when state leaves gameover.
+let mpGameoverShown = false;
 
 function renderLobby() {
   if (!mpSession) return;
   const roster = mpSession.roster || [];
   const myId = mpSession.id;
   const iAmHost = mpSession.isHost;
+  const inGameover = !!(game && game.state === 'gameover' && game.mode === 'mp');
 
   document.getElementById('mp-roster-wrap').classList.remove('hidden');
   document.getElementById('mp-pre-join').classList.add('hidden');
@@ -229,6 +233,13 @@ function renderLobby() {
 
   const list = document.getElementById('mp-roster');
   list.innerHTML = '';
+
+  // Build a score lookup so the gameover view can show each player's score.
+  const scoreFor = (id) => {
+    if (id === myId) return Math.floor(game && game.score || 0);
+    const r = game && game.remotes && game.remotes.get(id);
+    return r ? Math.floor(r.score || 0) : 0;
+  };
 
   for (const p of roster) {
     const row = document.createElement('div');
@@ -251,6 +262,14 @@ function renderLobby() {
     }
     row.appendChild(nm);
 
+    // In gameover, show the player's final score before the ready check.
+    if (inGameover) {
+      const sc = document.createElement('div');
+      sc.className = 'mp-score';
+      sc.textContent = scoreFor(p.id) + ' m';
+      row.appendChild(sc);
+    }
+
     if (p.ready) {
       const rd = document.createElement('div');
       rd.className = 'mp-ready-icon';
@@ -268,6 +287,30 @@ function renderLobby() {
 
     list.appendChild(row);
   }
+}
+
+// Open the MP modal in "rematch" state (roster + ready button visible),
+// reusing the lobby DOM. Called when local game transitions to MP gameover.
+function openMpRematchModal() {
+  if (!mpSession) return;
+  const modal = document.getElementById('mp-modal');
+  modal.classList.remove('hidden');
+  // Hide pre-join (host/join row), show roster + code
+  document.getElementById('mp-pre-join').classList.add('hidden');
+  document.getElementById('mp-roster-wrap').classList.remove('hidden');
+  if (mpSession.code) {
+    document.getElementById('mp-code-display').textContent = mpSession.code;
+    document.getElementById('mp-code-row').classList.remove('hidden');
+  }
+  const ready = document.getElementById('mp-ready');
+  ready.classList.remove('hidden');
+  ready.style.display = '';
+  ready.disabled = false;
+  ready.textContent = 'Rematch';
+  const cancel = document.getElementById('mp-cancel');
+  if (cancel) cancel.disabled = false;
+  setMpStatus('Press Rematch when ready');
+  renderLobby();
 }
 
 function openMpModal() {
@@ -358,10 +401,8 @@ function wireMpSession() {
     setMpStatus(`${e.name || 'A player'} joined`);
   });
   mpSession.on('peerReady', () => {
-    if (game && game.state === 'gameover' && game.mode === 'mp') {
-      game.rematchStatus = 'Friend is ready...';
-      return;
-    }
+    // The visual checkmark in renderLobby IS the feedback - same in lobby
+    // and in MP gameover (the modal is reused for both).
     renderLobby();
     const allReady = mpSession.roster.length >= 2 && mpSession.roster.every(p => p.ready);
     if (!allReady) {
@@ -427,7 +468,18 @@ document.getElementById('mp-ready').addEventListener('click', () => {
     document.getElementById('mp-ready').disabled = true;
   }
 });
-document.getElementById('mp-cancel').addEventListener('click', closeMpModal);
+document.getElementById('mp-cancel').addEventListener('click', () => {
+  // If we're cancelling out of MP gameover (rematch screen), fully drop
+  // back to a fresh solo title - the game is otherwise stuck in 'gameover'
+  // with no canvas controls (the panel is suppressed in MP gameover).
+  const wasMpGameover = game && game.state === 'gameover' && game.mode === 'mp';
+  closeMpModal();
+  if (wasMpGameover) {
+    game = createGame();
+    game.state = 'title';
+    mpGameoverShown = false;
+  }
+});
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
 
 // Bridge from the lobby (WS3) into actual gameplay (WS4). Replaces the
@@ -560,6 +612,16 @@ function frame(now) {
   updateGame(game, input, viewport, dt);
   render(ctx, viewport, game);
   syncTouchZones();
+
+  // MP gameover: open the lobby-style rematch modal once per gameover.
+  // Reset the guard whenever we leave gameover so the next death re-opens it.
+  if (game.state === 'gameover' && game.mode === 'mp' && mpSession && !mpGameoverShown) {
+    mpGameoverShown = true;
+    openMpRematchModal();
+  } else if (game.state !== 'gameover' && mpGameoverShown) {
+    mpGameoverShown = false;
+  }
+
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

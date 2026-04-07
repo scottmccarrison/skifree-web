@@ -252,17 +252,18 @@ export function render(ctx, viewport, game) {
       multiplayer: true,
     });
   } else if (state === 'gameover') {
-    const lines = [`${Math.floor(score)} m`];
-    if (game.mode === 'mp') {
-      lines.push(game.rematchStatus || 'Press RESTART for rematch');
+    // In MP, the gameover screen is the multiplayer modal (opened from main.js
+    // when state transitions to gameover). The canvas panel is suppressed so
+    // the lobby-style roster with ready checkmarks is the only thing visible.
+    if (game.mode !== 'mp') {
+      drawCenteredPanel(ctx, viewport, game, {
+        title: 'GAME OVER',
+        hint: game.hint,
+        lines: [`${Math.floor(score)} m`],
+        restart: true,
+        multiplayer: true,
+      });
     }
-    drawCenteredPanel(ctx, viewport, game, {
-      title: 'GAME OVER',
-      hint: game.hint,
-      lines,
-      restart: true,
-      multiplayer: game.mode !== 'mp',
-    });
   }
 }
 
