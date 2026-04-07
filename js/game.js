@@ -1,6 +1,7 @@
 import { createPlayer, updatePlayer, crashPlayer, launchJump, launchHop, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
-import { createYeti, updateYeti, resetYeti } from './yeti.js';
+import { createYeti, updateYeti, resetYeti, checkYetiCollision } from './yeti.js';
+import { createCritters, resetCritters, updateCritters, checkCritterCollision } from './critters.js';
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
 
@@ -41,12 +42,15 @@ function pickHint() {
   return HINTS[Math.floor(Math.random() * HINTS.length)];
 }
 
-export function createGame() {
+export function createGame(seed) {
+  const gameSeed = (seed === undefined ? Date.now() : seed) >>> 0;
   return {
-    state: 'title', // 'title' | 'playing' | 'gameover'
+    state: 'title', // 'title' | 'playing' | 'paused' | 'gameover'
+    seed: gameSeed,
     player: createPlayer(),
-    world: createWorld(),
-    yeti: createYeti(),
+    world: createWorld(gameSeed),
+    yeti: createYeti(gameSeed),
+    critters: createCritters(),
     score: 0,
     startY: 0,
     elapsed: 0,
@@ -58,6 +62,21 @@ export function createGame() {
     leaderboardLoading: false,
     leaderboardTab: 'daily',  // 'daily' | 'alltime' | 'you'
     personalBests: getPersonalBests(),
+    // Multiplayer (defaults are solo-safe)
+    mode: 'solo',          // 'solo' | 'mp'
+    session: null,
+    isHost: true,
+    remotes: new Map(),
+    remoteYeti: null,
+    spectateCycleIdx: 0,
+    spectating: false,
+    lastSentT: 0,
+    seq: 0,
+    peerLeft: false,
+    diedSent: false,
+    scoreSubmitted: false,
+    rematchPending: false,
+    rematchStatus: '',
   };
 }
 
@@ -88,14 +107,28 @@ export function updateGame(game, input, viewport, dt) {
     return;
   }
 
+  // Paused (e.g. feedback modal open in solo). Freeze the sim entirely.
+  // MP never pauses - openFeedback gates on game.mode !== 'mp'.
+  if (game.state === 'paused') {
+    return;
+  }
+
   if (game.state === 'playing') {
     game.elapsed += dt;
     // Difficulty: 1.0 at start, +1.0 per 30s, capped at ~3.5.
     const difficulty = Math.min(3.5, 1 + game.elapsed / 30);
     const speedMult = Math.min(1.6, 1 + game.elapsed / 90);
+    // Exposed on game so the MP broadcast payload can include it - the host
+    // needs every player's speedMult to scale the yeti against its target.
+    game.speedMult = speedMult;
 
-    updatePlayer(game.player, input, dt, speedMult);
-    updateWorld(game.world, game.player, viewport, difficulty);
+    if (!game.spectating) {
+      updatePlayer(game.player, input, dt, speedMult);
+    }
+    // Single source of truth for the camera/world target. render.js reads
+    // this so it never disagrees with what world generation is following.
+    game.cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
+    updateWorld(game.world, game.cameraTarget, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
     if (hit) {
@@ -106,7 +139,7 @@ export function updateGame(game, input, viewport, dt) {
           hit.hopped = true;
           launchHop(game.player);
         }
-      } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
+      } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0 && !game.spectating) {
         captureCrashSnapshot(game);
         crashPlayer(game.player);
         endRun(game);
@@ -114,10 +147,72 @@ export function updateGame(game, input, viewport, dt) {
       }
     }
 
-    const eaten = updateYeti(game.yeti, game.player, dt, difficulty);
-    if (eaten) {
+    // Critters: per-player local hazards. Skip entirely while spectating -
+    // a dead player can't crash again and the camera follows the slowest
+    // alive remote, so spawning around our crashed body is wasted work.
+    if (!game.spectating) {
+      updateCritters(game.critters, game.player, viewport, dt, game.score, speedMult);
+    }
+    if (!game.spectating && checkCritterCollision(game.critters, game.player)) {
+      captureCrashSnapshot(game);
+      crashPlayer(game.player);
       endRun(game);
       return;
+    }
+
+    if (game.mode !== 'mp' || game.isHost) {
+      // Host (or solo): yeti chases slowest alive player
+      const target = (game.mode === 'mp')
+        ? (pickSlowestAlive(game) || game.player)
+        : game.player;
+      // updateYeti only reads target.x/target.y, but pass a safe shape.
+      const targetForYeti = (target === game.player)
+        ? game.player
+        : { x: target.x, y: target.y };
+      // Yeti speed scales with the target's own speedMult so it stays
+      // proportional to whoever it's actually chasing.
+      const targetSpeedMult = (target === game.player)
+        ? speedMult
+        : (typeof target.speedMult === 'number' ? target.speedMult : 1);
+      const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty, targetSpeedMult);
+      if (eaten && !game.spectating && target === game.player) {
+        endRun(game);
+        return;
+      }
+      // If the yeti caught a remote, that remote's client detects it via
+      // its own checkYetiCollision against the broadcast yeti position.
+    } else {
+      // Non-host MP: yeti position is driven by network messages.
+      // Still run an identical collision check locally so deaths are responsive.
+      if (!game.spectating && checkYetiCollision(game.yeti, game.player)) {
+        crashPlayer(game.player);
+        endRun(game);
+        return;
+      }
+    }
+
+    // 10Hz state broadcast (host and joiner both send their own player state).
+    if (game.mode === 'mp' && game.session && !game.peerLeft) {
+      game.lastSentT += dt;
+      if (game.lastSentT >= 0.1) {
+        game.lastSentT = 0;
+        const payload = {
+          x: game.player.x,
+          y: game.player.y,
+          state: game.player.state,
+          score: game.score,
+          speedMult: game.speedMult,
+          seq: game.seq++,
+        };
+        if (game.isHost) {
+          payload.yeti = {
+            active: game.yeti.active,
+            x: game.yeti.x,
+            y: game.yeti.y,
+          };
+        }
+        game.session.sendState(payload);
+      }
     }
 
     game.score = Math.max(0, (game.player.y - game.startY) / 10);
@@ -129,16 +224,87 @@ export function updateGame(game, input, viewport, dt) {
 
   if (game.state === 'gameover') {
     if (input.restart) {
-      startRun(game);
+      if (game.mode === 'mp' && game.session && !game.peerLeft && !game.rematchPending) {
+        game.rematchPending = true;
+        game.rematchStatus = "You're ready - waiting on friend...";
+        try { game.session.sendReady(); } catch {}
+      } else if (game.mode !== 'mp') {
+        resetMpState(game);
+        startRun(game);
+      }
     }
     return;
   }
 }
 
+// Returns the alive player with the LOWEST y (slowest = least progress).
+// Considers local game.player and all alive remotes.
+// Returns null if everyone is dead.
+export function pickSlowestAlive(game) {
+  let slowest = null;
+  if (!game.spectating && game.player.state !== 'crashed') {
+    slowest = game.player;
+  }
+  if (game.remotes) {
+    for (const r of game.remotes.values()) {
+      if (!r.alive) continue;
+      if (!r.lastT || r.lastT === 0) continue;  // Skip uninitialized remotes
+      if (!slowest || r.y < slowest.y) slowest = r;
+    }
+  }
+  return slowest;
+}
+
+// Builds the cycle order: all remotes (id order) + local player at the end.
+// Includes crashed players per spec.
+export function getSpectateCycle(game) {
+  const order = [];
+  if (game.remotes) {
+    const sorted = Array.from(game.remotes.values()).sort((a, b) => a.id - b.id);
+    for (const r of sorted) order.push(r);
+  }
+  order.push(game.player);
+  return order;
+}
+
+export function advanceSpectateCycle(game) {
+  const cycle = getSpectateCycle(game);
+  if (cycle.length === 0) return;
+  game.spectateCycleIdx = (game.spectateCycleIdx + 1) % cycle.length;
+}
+
+export function pickSpectateTarget(game) {
+  const cycle = getSpectateCycle(game);
+  if (cycle.length === 0) return game.player;
+  const idx = ((game.spectateCycleIdx % cycle.length) + cycle.length) % cycle.length;
+  return cycle[idx];
+}
+
+function resetMpState(game) {
+  if (game.mode === 'mp') {
+    if (game.session && !game.session.closed) {
+      try { game.session.close(); } catch {}
+    }
+    game.mode = 'solo';
+    game.session = null;
+    game.isHost = true;
+    game.remotes = new Map();
+    game.remoteYeti = null;
+    game.spectateCycleIdx = 0;
+    game.spectating = false;
+    game.peerLeft = false;
+    game.lastSentT = 0;
+    game.seq = 0;
+    game.diedSent = false;
+  }
+}
+
 function startRun(game) {
   game.player = createPlayer();
-  game.world = createWorld();
+  game.world = createWorld(game.seed);
   resetYeti(game.yeti);
+  resetCritters(game.critters);
+  game.scoreSubmitted = false;
   game.score = 0;
   game.startY = 0;
   game.elapsed = 0;
@@ -146,16 +312,33 @@ function startRun(game) {
 }
 
 export function forceEndRun(game) {
-  if (game.state === 'playing') endRun(game);
+  if (game.state === 'playing' || game.state === 'paused') endRun(game);
 }
 
-function endRun(game) {
+export function forceGameOver(game) {
+  if (game.state === 'gameover') return;
   game.state = 'gameover';
+  game.spectating = false;
   game.hint = pickHint();
   game.deathCount += 1;
-  localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
-  localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
+    localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+  } catch {}
+}
 
+// Persist death count + high score, record personal best, and submit to the
+// leaderboard. Idempotent via game.scoreSubmitted so both the spectator
+// branch and the final-gameover branch can call it safely. Used by solo
+// AND multiplayer - MP scores now post to the same daily/all-time boards.
+function finalizeScore(game) {
+  if (game.scoreSubmitted) return;
+  game.scoreSubmitted = true;
+  game.deathCount += 1;
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
+    localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+  } catch {}
   const finalScore = Math.floor(game.score);
   const name = getStoredName().trim() || 'anon';
   game.personalBests = recordPersonalBest(finalScore);
@@ -166,4 +349,37 @@ function endRun(game) {
       if (board) game.leaderboard = board;
     });
   }
+}
+
+function endRun(game) {
+  if (game.spectating) return;
+  if (game.state === 'gameover') return;
+  // MP: notify peer of our death once, regardless of which branch we take.
+  if (game.mode === 'mp' && game.session && !game.diedSent) {
+    try { game.session.sendDied(); } catch {}
+    game.diedSent = true;
+  }
+  // Submit immediately on local death so the player gets credit even if
+  // they later spectate the rest of the lobby. finalizeScore is idempotent.
+  finalizeScore(game);
+  // Multiplayer: if the peer is still alive, become a spectator instead of
+  // ending the run.
+  if (game.mode === 'mp' && game.session && !game.peerLeft) {
+    let anyAlive = false;
+    for (const r of game.remotes.values()) { if (r.alive) { anyAlive = true; break; } }
+    if (anyAlive) {
+      game.spectating = true;
+      // Auto-target yeti's prey (slowest alive) on first activation.
+      const slowest = pickSlowestAlive(game);
+      if (slowest && slowest !== game.player) {
+        const cycle = getSpectateCycle(game);
+        const idx = cycle.indexOf(slowest);
+        if (idx >= 0) game.spectateCycleIdx = idx;
+      }
+      return;
+    }
+  }
+
+  game.state = 'gameover';
+  game.hint = pickHint();
 }

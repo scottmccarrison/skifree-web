@@ -32,6 +32,37 @@
     </div>
   </div>
 
+  <div id="mp-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="mp-title">
+    <div class="fb-card mp-card">
+      <div class="fb-title" id="mp-title">Multiplayer</div>
+
+      <div id="mp-roster-wrap" class="hidden">
+        <div class="mp-roster-header">
+          <span id="mp-roster-count">0/10</span> players
+        </div>
+        <div id="mp-roster" class="mp-roster"></div>
+      </div>
+
+      <div id="mp-code-row" class="hidden">
+        <div class="mp-code">CODE: <span id="mp-code-display"></span></div>
+      </div>
+
+      <div id="mp-status">&nbsp;</div>
+      <button id="mp-ready" class="mp-btn hidden" disabled>I'm ready</button>
+
+      <div id="mp-pre-join">
+        <button id="mp-host" class="mp-btn">Host a run</button>
+        <div class="mp-divider">- or -</div>
+        <div class="mp-join-row">
+          <input id="mp-code-input" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
+          <button id="mp-join-go" class="mp-btn">Join</button>
+        </div>
+      </div>
+
+      <button id="mp-cancel" class="mp-btn mp-btn-secondary">Cancel</button>
+    </div>
+  </div>
+
   <div id="touch-zones" aria-hidden="true">
     <div class="tzone" data-dir="left"></div>
     <div class="tzone" data-dir="right"></div>

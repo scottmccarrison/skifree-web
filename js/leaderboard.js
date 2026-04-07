@@ -2,9 +2,10 @@
 // /api/* when run from the worker dev server.
 
 const API_BASE = (() => {
-  // When the page is at mccarrison.me/ski/* the API is at /ski/api/*.
-  // When developing locally via `wrangler dev` the worker strips /ski itself.
-  if (location.pathname.startsWith('/ski')) return '/ski/api';
+  // Match the first path segment exactly so /skidev doesn't get folded into
+  // /ski. /ski/* -> /ski/api, /skidev/* -> /skidev/api, otherwise /api.
+  const seg = location.pathname.split('/')[1] || '';
+  if (seg === 'ski' || seg === 'skidev') return `/${seg}/api`;
   return '/api';
 })();
 

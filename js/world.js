@@ -1,6 +1,8 @@
 // World: chunk-based obstacle spawning. The world is an infinite 2D grid of
 // chunks; whenever a chunk near the player hasn't been spawned yet, we fill it.
 
+import { mulberry32, hashChunk } from './rng.js';
+
 const CHUNK = 200; // world units per chunk side
 
 // Each type has a tight `hit` box centered at (sprite center + dx, dy).
@@ -23,8 +25,8 @@ const TYPES = [
 
 const TOTAL_WEIGHT = TYPES.reduce((s, t) => s + t.weight, 0);
 
-function pickType() {
-  let r = Math.random() * TOTAL_WEIGHT;
+function pickType(rng) {
+  let r = rng() * TOTAL_WEIGHT;
   for (const t of TYPES) {
     r -= t.weight;
     if (r <= 0) return t;
@@ -32,10 +34,11 @@ function pickType() {
   return TYPES[0];
 }
 
-export function createWorld() {
+export function createWorld(seed) {
   return {
     obstacles: [],
     spawnedChunks: new Set(), // "cx,cy" keys
+    seed: (seed === undefined ? Date.now() : seed) >>> 0,
   };
 }
 
@@ -57,7 +60,7 @@ export function updateWorld(world, player, viewport, difficulty = 1) {
       const key = cx + ',' + cy;
       if (world.spawnedChunks.has(key)) continue;
       world.spawnedChunks.add(key);
-      spawnChunk(world, cx, cy, difficulty);
+      spawnChunk(world, cx, cy);
     }
   }
 
@@ -104,22 +107,26 @@ function overlapsExisting(world, t, x, y) {
   return false;
 }
 
-function spawnChunk(world, cx, cy, difficulty) {
+function spawnChunk(world, cx, cy) {
   // Player starts at (0, 0). Keep the very first chunks empty so they
   // can't crash on spawn.
   if (cy <= 0 && Math.abs(cx) <= 1) return;
 
+  const rng = mulberry32(hashChunk(world.seed, cx, cy));
   const x0 = cx * CHUNK;
   const y0 = cy * CHUNK;
-  // ~2-5 obstacles per chunk depending on difficulty.
-  const count = 2 + Math.floor(Math.random() * (2 + difficulty));
+  // Difficulty derived from chunk position (not elapsed time) so that
+  // chunk content is purely a function of (seed, cx, cy).
+  const chunkDifficulty = 1 + Math.min(4, Math.abs(cy) / 10);
+  // ~2-5 obstacles per chunk depending on chunkDifficulty.
+  const count = 2 + Math.floor(rng() * (2 + chunkDifficulty));
   for (let i = 0; i < count; i++) {
-    const t = pickType();
+    const t = pickType(rng);
     // Rejection sample: try a handful of positions, skip if all overlap.
     let placed = false;
     for (let attempt = 0; attempt < 6; attempt++) {
-      const x = x0 + Math.random() * CHUNK;
-      const y = y0 + Math.random() * CHUNK;
+      const x = x0 + rng() * CHUNK;
+      const y = y0 + rng() * CHUNK;
       if (!overlapsExisting(world, t, x, y)) {
         world.obstacles.push({ type: t, x, y });
         placed = true;

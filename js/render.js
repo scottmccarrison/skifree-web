@@ -1,16 +1,52 @@
 import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
-  drawPlayer, drawYeti,
+  drawPlayer, drawYeti, drawSquirrel,
 } from './sprites.js';
+
+// Legend wrapper: squirrel sprite is offset upward in its own art so it
+// reads at the same baseline as the other obstacles in the legend grid.
+function drawSquirrelLegend(ctx) { drawSquirrel(ctx, 1); }
 import { getStoredName } from './leaderboard.js';
+import { colorForIndex } from './colors.js';
+
+let _spriteCanvas = null;
+function getSpriteCanvas() {
+  if (!_spriteCanvas) {
+    _spriteCanvas = document.createElement('canvas');
+    _spriteCanvas.width = 60;
+    _spriteCanvas.height = 60;
+  }
+  return _spriteCanvas;
+}
+
+function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha) {
+  const sc = getSpriteCanvas();
+  const sctx = sc.getContext('2d');
+  sctx.clearRect(0, 0, sc.width, sc.height);
+  sctx.save();
+  sctx.translate(sc.width / 2, sc.height / 2);
+  drawPlayer(sctx, state);
+  sctx.restore();
+  sctx.save();
+  sctx.globalCompositeOperation = 'source-atop';
+  sctx.fillStyle = color;
+  sctx.globalAlpha = 0.5;
+  sctx.fillRect(0, 0, sc.width, sc.height);
+  sctx.restore();
+  ctx.save();
+  if (typeof alpha === 'number') ctx.globalAlpha = alpha;
+  ctx.drawImage(sc, screenX - sc.width / 2, screenY - sc.height / 2);
+  ctx.restore();
+}
 
 const LEGEND = [
-  { draw: drawTreeLarge, label: 'tree - CRASH' },
-  { draw: drawRock,      label: 'rock - CRASH' },
-  { draw: drawStump,     label: 'stump - CRASH' },
-  { draw: drawJump,      label: 'log - JUMP (boost)' },
-  { draw: drawMogul,     label: 'mogul - HOP (bump)' },
-  { draw: drawYeti,      label: 'yeti - RUN!' },
+  { draw: drawTreeLarge,     label: 'tree - CRASH' },
+  { draw: drawRock,          label: 'rock - CRASH' },
+  { draw: drawStump,         label: 'stump - CRASH' },
+  { draw: drawSquirrelLegend, label: 'squirrel - CRASH' },
+  { draw: drawJump,          label: 'log - JUMP (boost)' },
+  { draw: drawMogul,         label: 'mogul - HOP (bump)' },
+  { draw: drawYeti,          label: 'yeti - RUN!' },
 ];
 
 const SPRITE_FNS = {
@@ -25,6 +61,21 @@ const SPRITE_FNS = {
 // Hit regions registered each frame so the canvas click handler in main.js
 // can map clicks to UI actions. Each entry: {x, y, w, h, action, data}.
 export const hitRegions = [];
+
+function lerpRemote(remote) {
+  // Interpolate from prev->cur over the snapshot interval. Lags one snapshot
+  // for smoothness; if no prev, just return cur.
+  if (!remote.prevT || !remote.lastT || remote.lastT === remote.prevT) {
+    return { x: remote.x, y: remote.y };
+  }
+  const now = performance.now() / 1000;
+  const span = remote.lastT - remote.prevT;
+  const t = Math.min(1, Math.max(0, (now - remote.lastT) / span));
+  return {
+    x: remote.prevX + (remote.x - remote.prevX) * t,
+    y: remote.prevY + (remote.y - remote.prevY) * t,
+  };
+}
 
 export function render(ctx, viewport, game) {
   hitRegions.length = 0;
@@ -75,9 +126,12 @@ export function render(ctx, viewport, game) {
     drawSnowflakes(ctx, viewport, game.elapsed || 0, flakeCount);
   }
 
-  // Camera: player drawn at ~1/3 from top, x centered.
-  const camX = player.x - viewport.w / 2;
-  const camY = player.y - viewport.h / 3;
+  // Camera: read the SAME target updateGame used for world generation.
+  // game.cameraTarget is set every frame in updateGame so render and
+  // world generation can never drift apart.
+  const cameraTarget = game.cameraTarget || player;
+  const camX = cameraTarget.x - viewport.w / 2;
+  const camY = cameraTarget.y - viewport.h / 3;
 
   // Draw obstacles in view.
   for (const o of world.obstacles) {
@@ -87,8 +141,22 @@ export function render(ctx, viewport, game) {
     if (sy < -60 || sy > viewport.h + 60) continue;
     ctx.save();
     ctx.translate(sx, sy);
-    SPRITE_FNS[o.type.kind](ctx);
+    SPRITE_FNS[o.type.kind](ctx, score);
     ctx.restore();
+  }
+
+  // Critters (squirrels).
+  if (game.critters && game.critters.list) {
+    for (const c of game.critters.list) {
+      const sx = c.x - camX;
+      const sy = c.y - camY;
+      if (sx < -30 || sx > viewport.w + 30) continue;
+      if (sy < -30 || sy > viewport.h + 30) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      drawSquirrel(ctx, c.vx >= 0 ? 1 : -1);
+      ctx.restore();
+    }
   }
 
   // Yeti.
@@ -113,10 +181,25 @@ export function render(ctx, viewport, game) {
     ctx.fill();
     ctx.restore();
   }
-  ctx.save();
-  ctx.translate(player.x - camX, player.y - camY - lift);
-  drawPlayer(ctx, player.state);
-  ctx.restore();
+  if (game.mode === 'mp') {
+    const localColor = colorForIndex(game.localColor != null ? game.localColor : 0);
+    drawTintedPlayerAt(ctx, player.x - camX, player.y - camY - lift, player.state, localColor, 1.0);
+  } else {
+    ctx.save();
+    ctx.translate(player.x - camX, player.y - camY - lift);
+    drawPlayer(ctx, player.state);
+    ctx.restore();
+  }
+
+  // Remote skiers (multiplayer): tinted translucent overlay per peer.
+  if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
+    for (const remote of game.remotes.values()) {
+      const lr = lerpRemote(remote);
+      const color = colorForIndex(remote.color);
+      const alpha = remote.alive ? 0.55 : 0.25;
+      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha);
+    }
+  }
 
   // Night mode: invert everything drawn so far via 'difference' with white.
   if (inverted) {
@@ -135,6 +218,46 @@ export function render(ctx, viewport, game) {
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
   ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
+  if (game.mode === 'mp' && game.remotes) {
+    const all = [];
+    all.push({
+      name: 'YOU',
+      color: game.localColor != null ? game.localColor : 0,
+      score: Math.floor(game.score || 0),
+      alive: !game.spectating && game.player.state !== 'crashed',
+    });
+    for (const r of game.remotes.values()) {
+      all.push({
+        name: r.name || `anon${r.id}`,
+        color: r.color,
+        score: Math.floor(r.score || 0),
+        alive: r.alive,
+      });
+    }
+    all.sort((a, b) => b.score - a.score);
+    const startX = 16;
+    const startY = 78;
+    const rowH = 14;
+    ctx.save();
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i < all.length; i++) {
+      const p = all[i];
+      const y = startY + i * rowH;
+      ctx.fillStyle = colorForIndex(p.color);
+      ctx.fillRect(startX, y + 2, 10, 10);
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(startX + 0.5, y + 2.5, 9, 9);
+      ctx.fillStyle = p.alive ? (inverted ? '#f4faff' : '#1a1a1a') : '#888';
+      const nm = p.name.length > 8 ? p.name.slice(0, 8) : p.name;
+      let label = `${nm} ${p.score}`;
+      if (!p.alive) label += ' x';
+      ctx.fillText(label, startX + 16, y);
+    }
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  }
 
   // State overlays.
   if (state === 'title') {
@@ -145,27 +268,39 @@ export function render(ctx, viewport, game) {
       legend: true,
       restart: true,
       restartLabel: 'START',
+      multiplayer: true,
     });
   } else if (state === 'gameover') {
-    drawCenteredPanel(ctx, viewport, game, {
-      title: 'GAME OVER',
-      hint: game.hint,
-      lines: [`${Math.floor(score)} m`],
-      restart: true,
-    });
+    // In MP, the gameover screen is the multiplayer modal (opened from main.js
+    // when state transitions to gameover). The canvas panel is suppressed so
+    // the lobby-style roster with ready checkmarks is the only thing visible.
+    if (game.mode !== 'mp') {
+      drawCenteredPanel(ctx, viewport, game, {
+        title: 'GAME OVER',
+        hint: game.hint,
+        lines: [`${Math.floor(score)} m`],
+        restart: true,
+        multiplayer: true,
+      });
+    }
   }
 }
 
 function drawSnowflakes(ctx, viewport, t, count) {
+  if (viewport.w <= 0 || viewport.h <= 0) return;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  const W = viewport.w + 40;
   for (let i = 0; i < count; i++) {
     // Deterministic per-flake offsets so they don't strobe.
     const seed = i * 12.9898;
     const sx = ((Math.sin(seed) * 43758) % 1 + 1) % 1;
     const sy = ((Math.sin(seed + 1.7) * 43758) % 1 + 1) % 1;
     const speed = 20 + ((i * 7) % 30);
-    const x = sx * viewport.w + Math.sin(t * 0.5 + i) * 8;
+    // Diagonal drift: each flake travels horizontally proportional to its
+    // fall speed, wrapping across an extended width so it never strands.
+    const baseX = sx * W;
+    const x = ((baseX + Math.sin(t * 0.5 + i) * 8 + t * speed * 0.25) % W + W) % W - 20;
     const y = (sy * viewport.h + t * speed) % viewport.h;
     const r = 1.2 + ((i * 3) % 3) * 0.5;
     ctx.beginPath();
@@ -183,7 +318,7 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend, restart, restartLabel } = panel;
+  const { title, hint, lines, legend, restart, restartLabel, multiplayer } = panel;
   const restartHeight = restart ? 44 : 0;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
@@ -274,7 +409,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
       ctx.save();
       ctx.translate(ix, iy);
       ctx.scale(0.55, 0.55);
-      item.draw(ctx);
+      item.draw(ctx, 9999);
       ctx.restore();
       // Label
       ctx.fillStyle = '#1a1a1a';
@@ -373,6 +508,31 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
       x: bx, y: by, w: btnW, h: btnH,
       action: 'restart', data: null,
     });
+
+    if (multiplayer) {
+      const mpW = btnW;
+      const mpH = 28;
+      const mpX = cx - mpW / 2;
+      const mpY = by - mpH - 8;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(mpX, mpY, mpW, mpH, 6);
+      else ctx.rect(mpX, mpY, mpW, mpH);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('MULTIPLAYER', cx, mpY + mpH / 2 + 1);
+      ctx.textBaseline = 'alphabetic';
+      hitRegions.push({
+        x: mpX, y: mpY, w: mpW, h: mpH,
+        action: 'multiplayer', data: null,
+      });
+    }
   }
 
 }

@@ -1,0 +1,47 @@
+# Dev worker for skifree-web. Completely isolated from prod.
+#
+# Deploy with:
+#   cd ~/skifree-web/worker
+#   npx wrangler deploy --config wrangler.dev.toml
+#
+# This worker is named skidev-api and bound to mccarrison.me/skidev*. It
+# uses its own Durable Object namespace (because the worker name is
+# different) and its own D1 database (skifree-dev). Prod traffic at
+# mccarrison.me/ski never touches this worker.
+
+name = "skidev-api"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+routes = [
+  { pattern = "mccarrison.me/skidev", zone_name = "mccarrison.me" },
+  { pattern = "mccarrison.me/skidev/*", zone_name = "mccarrison.me" },
+]
+
+[vars]
+PATH_PREFIX = "/skidev"
+
+# Static asset binding: serves the parent skifree-web directory at the
+# worker root. The bundle is whatever is checked out at deploy time -
+# deploy from playtest/multiplayer to ship the multiplayer build.
+[assets]
+directory = "../"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Dev D1 - separate database from prod skifree.
+[[d1_databases]]
+binding = "DB"
+database_name = "skifree-dev"
+database_id = "ef2fe19d-55bb-4ec8-9ecd-b6f261af9892"
+
+# Durable Objects: same Room class, but because this worker has a
+# different name (skidev-api), the namespace is fully separate from
+# the prod skifree-api ROOMS namespace. Room codes do not collide.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

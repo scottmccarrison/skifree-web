@@ -1,10 +1,12 @@
-// skifree-api worker.
+// skifree-api worker (also used by skidev-api via wrangler.dev.toml).
 // Path prefix is read from env.PATH_PREFIX (defaults to "/ski") so the same
 // code can serve mccarrison.me/ski (prod) and mccarrison.me/skidev (dev).
 // Routes (relative to the prefix):
 //   GET  /api/leaderboard      -> top 10 scores
 //   POST /api/score            -> { name, score }
 //   *                          -> serves static assets from ../
+
+export { Room } from './room.js';
 
 const MAX_NAME_LEN = 16;
 const MAX_SCORE = 10_000_000;
@@ -34,6 +36,29 @@ export default {
     }
     if (path === '/api/feedback' && request.method === 'POST') {
       return postFeedback(request, env);
+    }
+
+    if (path === '/api/room' && request.method === 'POST') {
+      const code = generateRoomCode();
+      const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+      const id = env.ROOMS.idFromName(code);
+      const stub = env.ROOMS.get(id);
+      await stub.fetch('https://room/init', {
+        method: 'POST',
+        body: JSON.stringify({ seed }),
+        headers: { 'content-type': 'application/json' }
+      });
+      return new Response(JSON.stringify({ code, seed }), {
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+
+    const roomMatch = path.match(/^\/api\/room\/([A-Z]{4})$/);
+    if (roomMatch && request.headers.get('Upgrade') === 'websocket') {
+      const code = roomMatch[1];
+      const id = env.ROOMS.idFromName(code);
+      const stub = env.ROOMS.get(id);
+      return stub.fetch(request);
     }
 
     // Static assets - rewrite the request URL so the asset bundle (which
@@ -155,6 +180,14 @@ async function postFeedback(request, env) {
   }
   const data = await r.json();
   return json({ ok: true, url: data.html_url });
+}
+
+function generateRoomCode() {
+  const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const buf = crypto.getRandomValues(new Uint8Array(4));
+  let s = '';
+  for (let i = 0; i < 4; i++) s += ALPHABET[buf[i] % ALPHABET.length];
+  return s;
 }
 
 function json(obj, status = 200) {

@@ -1,6 +1,6 @@
 // Procedural sprite drawing. World units; (0,0) at sprite center.
 
-export function drawTreeLarge(ctx) {
+export function drawTreeLarge(ctx, score = 0) {
   ctx.fillStyle = '#1f5f2a';
   ctx.beginPath();
   ctx.moveTo(0, -22);
@@ -16,20 +16,22 @@ export function drawTreeLarge(ctx) {
   ctx.fill();
   ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-2, 14, 4, 6);
-  // Christmas lights: tiny dots in alternating colors.
-  const lights = [
-    { x: -10, y: -2,  c: '#ff3838' },
-    { x:  8,  y: -6,  c: '#ffd400' },
-    { x: -4,  y: -14, c: '#3aa0ff' },
-    { x:  10, y:  8,  c: '#39e08a' },
-    { x: -12, y: 10,  c: '#ffd400' },
-    { x:  4,  y: 4,   c: '#ff3838' },
-  ];
-  for (const l of lights) {
-    ctx.fillStyle = l.c;
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, 1.6, 0, Math.PI * 2);
-    ctx.fill();
+  // Christmas lights: only appear once you've earned them (>=500m).
+  if (score >= 500) {
+    const lights = [
+      { x: -10, y: -2,  c: '#ff3838' },
+      { x:  8,  y: -6,  c: '#ffd400' },
+      { x: -4,  y: -14, c: '#3aa0ff' },
+      { x:  10, y:  8,  c: '#39e08a' },
+      { x: -12, y: 10,  c: '#ffd400' },
+      { x:  4,  y: 4,   c: '#ff3838' },
+    ];
+    for (const l of lights) {
+      ctx.fillStyle = l.c;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   // Star on top.
   ctx.fillStyle = '#ffd400';
@@ -38,7 +40,7 @@ export function drawTreeLarge(ctx) {
   ctx.fill();
 }
 
-export function drawTreeSmall(ctx) {
+export function drawTreeSmall(ctx, score = 0) {
   ctx.fillStyle = '#2a7a36';
   ctx.beginPath();
   ctx.moveTo(0, -14);
@@ -48,13 +50,15 @@ export function drawTreeSmall(ctx) {
   ctx.fill();
   ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-1.5, 8, 3, 4);
-  // A couple of lights.
-  ctx.fillStyle = '#ff3838';
-  ctx.beginPath(); ctx.arc(-5, 2, 1.3, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ffd400';
-  ctx.beginPath(); ctx.arc(4, 5, 1.3, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#3aa0ff';
-  ctx.beginPath(); ctx.arc(0, -6, 1.3, 0, Math.PI * 2); ctx.fill();
+  // A couple of lights, gated to >=500m like the large tree.
+  if (score >= 500) {
+    ctx.fillStyle = '#ff3838';
+    ctx.beginPath(); ctx.arc(-5, 2, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd400';
+    ctx.beginPath(); ctx.arc(4, 5, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3aa0ff';
+    ctx.beginPath(); ctx.arc(0, -6, 1.3, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 export function drawMogul(ctx) {
@@ -190,6 +194,47 @@ function drawCrashedPlayer(ctx) {
   ctx.font = 'bold 14px sans-serif';
   ctx.fillText('★', -16, -10);
   ctx.fillText('★', 8, -14);
+}
+
+// Squirrel critter. Faces in the direction it's running (`facing`: -1 left, +1 right).
+export function drawSquirrel(ctx, facing = 1) {
+  ctx.save();
+  if (facing < 0) ctx.scale(-1, 1);
+  // Body
+  ctx.fillStyle = '#8a5a2b';
+  ctx.strokeStyle = '#3a2410';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Head
+  ctx.beginPath();
+  ctx.arc(6, -2, 3, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Ear
+  ctx.beginPath();
+  ctx.moveTo(7, -5);
+  ctx.lineTo(8, -7);
+  ctx.lineTo(9, -5);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(7.5, -2, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  // Bushy tail
+  ctx.fillStyle = '#6b4520';
+  ctx.beginPath();
+  ctx.ellipse(-7, -3, 4, 6, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2410';
+  ctx.stroke();
+  // Tiny legs
+  ctx.fillStyle = '#3a2410';
+  ctx.fillRect(-3, 3, 1.5, 2);
+  ctx.fillRect(3, 3, 1.5, 2);
+  ctx.restore();
 }
 
 export function drawYeti(ctx) {
