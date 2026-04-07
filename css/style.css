@@ -26,45 +26,25 @@ html, body {
   image-rendering: crisp-edges;
 }
 
-#touch-controls {
+#touch-zones {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  inset: 0;
   display: flex;
-  justify-content: space-around;
-  align-items: center;
   pointer-events: none;
-  padding: 0 12px;
 }
 
-#touch-controls.hidden { display: none; }
+#touch-zones.hidden { display: none; }
 
-.tbtn {
+.tzone {
+  flex: 1;
   pointer-events: auto;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 3px solid rgba(26, 26, 26, 0.55);
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--ink);
-  font-size: 32px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   touch-action: none;
-}
-
-.tbtn:active {
-  background: rgba(120, 180, 255, 0.7);
-  transform: scale(0.95);
+  background: transparent;
 }
 
 #name-input {
   position: fixed;
+  z-index: 10;
   top: 12px;
   right: 12px;
   width: 140px;

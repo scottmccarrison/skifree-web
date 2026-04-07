@@ -7,6 +7,7 @@ export function createPlayer() {
     state: 'straight',
     crashTimer: 0,    // seconds remaining of crash recovery
     airTime: 0,       // seconds remaining of jump (invulnerable + boosted)
+    idleTime: 0,      // seconds since last left/right input
     // Tight hit box centered on the skis' contact patch (not the whole body),
     // expressed as offsets from (x, y) and full width/height.
     hit: { dx: 0, dy: 8, w: 14, h: 10 },
@@ -50,7 +51,11 @@ export function updatePlayer(player, input, dt, speedMult = 1) {
     return 0; // no forward progress while crashed
   }
 
-  // Determine state from input.
+  // Determine state from input. Auto-settle to straight after a brief idle.
+  const turning = input.left || input.right;
+  if (turning) player.idleTime = 0;
+  else player.idleTime += dt;
+
   if (input.down) {
     player.state = 'straight';
   } else if (input.left && input.right) {
@@ -61,8 +66,11 @@ export function updatePlayer(player, input, dt, speedMult = 1) {
   } else if (input.right) {
     player.state = player.state === 'rightEasy' || player.state === 'rightHard'
       ? 'rightHard' : 'rightEasy';
+  } else if (player.idleTime > 0.15) {
+    // No turning input for a beat - drift back to straight.
+    player.state = 'straight';
   } else {
-    // No input - drift in current direction but ease toward straight.
+    // Brief grace period: ease hard turns down to easy first.
     if (player.state === 'leftHard') player.state = 'leftEasy';
     else if (player.state === 'rightHard') player.state = 'rightEasy';
   }
