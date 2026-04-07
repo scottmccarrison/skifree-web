@@ -2,6 +2,7 @@ import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
   drawPlayer, drawYeti,
 } from './sprites.js';
+import { getStoredName } from './leaderboard.js';
 
 const LEGEND = [
   { draw: drawTreeLarge, label: 'tree - CRASH' },
@@ -202,8 +203,9 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
         topEverHeader = board.topEver;
       }
     } else if (tab === 'you') {
+      const pbName = (getStoredName().trim() || 'anon').toLowerCase();
       rows = (game.personalBests || []).map(pb => ({
-        name: 'you',
+        name: pbName,
         score: pb.score,
         created_at: pb.at,
       }));
