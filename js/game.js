@@ -74,6 +74,7 @@ export function createGame(seed) {
     seq: 0,
     peerLeft: false,
     diedSent: false,
+    scoreSubmitted: false,
     rematchPending: false,
     rematchStatus: '',
   };
@@ -303,6 +304,7 @@ function startRun(game) {
   game.world = createWorld(game.seed);
   resetYeti(game.yeti);
   resetCritters(game.critters);
+  game.scoreSubmitted = false;
   game.score = 0;
   game.startY = 0;
   game.elapsed = 0;
@@ -325,6 +327,30 @@ export function forceGameOver(game) {
   } catch {}
 }
 
+// Persist death count + high score, record personal best, and submit to the
+// leaderboard. Idempotent via game.scoreSubmitted so both the spectator
+// branch and the final-gameover branch can call it safely. Used by solo
+// AND multiplayer - MP scores now post to the same daily/all-time boards.
+function finalizeScore(game) {
+  if (game.scoreSubmitted) return;
+  game.scoreSubmitted = true;
+  game.deathCount += 1;
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
+    localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+  } catch {}
+  const finalScore = Math.floor(game.score);
+  const name = getStoredName().trim() || 'anon';
+  game.personalBests = recordPersonalBest(finalScore);
+  if (finalScore > 0) {
+    game.leaderboardLoading = true;
+    submitScore(name, finalScore).then(board => {
+      game.leaderboardLoading = false;
+      if (board) game.leaderboard = board;
+    });
+  }
+}
+
 function endRun(game) {
   if (game.spectating) return;
   if (game.state === 'gameover') return;
@@ -333,6 +359,9 @@ function endRun(game) {
     try { game.session.sendDied(); } catch {}
     game.diedSent = true;
   }
+  // Submit immediately on local death so the player gets credit even if
+  // they later spectate the rest of the lobby. finalizeScore is idempotent.
+  finalizeScore(game);
   // Multiplayer: if the peer is still alive, become a spectator instead of
   // ending the run.
   if (game.mode === 'mp' && game.session && !game.peerLeft) {
@@ -353,21 +382,4 @@ function endRun(game) {
 
   game.state = 'gameover';
   game.hint = pickHint();
-  game.deathCount += 1;
-  localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
-  localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
-
-  // Leaderboard submission is suppressed entirely in multiplayer.
-  if (game.mode === 'mp') return;
-
-  const finalScore = Math.floor(game.score);
-  const name = getStoredName().trim() || 'anon';
-  game.personalBests = recordPersonalBest(finalScore);
-  if (finalScore > 0) {
-    game.leaderboardLoading = true;
-    submitScore(name, finalScore).then(board => {
-      game.leaderboardLoading = false;
-      if (board) game.leaderboard = board;
-    });
-  }
 }
