@@ -45,6 +45,11 @@ export function initInput() {
   for (const zone of wrap.querySelectorAll('.tzone')) {
     const dir = zone.dataset.dir;
 
+    // Block native touch behaviors on the zones (double-tap zoom, scroll).
+    zone.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    zone.addEventListener('touchend',   (e) => e.preventDefault(), { passive: false });
+    zone.addEventListener('touchmove',  (e) => e.preventDefault(), { passive: false });
+
     zone.addEventListener('pointerdown', (e) => {
       // Restart from title/gameover - cleared each frame after consumption.
       input.restart = true;
