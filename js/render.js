@@ -3,6 +3,15 @@ import {
   drawPlayer, drawYeti,
 } from './sprites.js';
 
+const LEGEND = [
+  { draw: drawTreeLarge, label: 'tree - CRASH' },
+  { draw: drawRock,      label: 'rock - CRASH' },
+  { draw: drawStump,     label: 'stump - CRASH' },
+  { draw: drawJump,      label: 'log - JUMP (boost)' },
+  { draw: drawMogul,     label: 'mogul - HOP (bump)' },
+  { draw: drawYeti,      label: 'yeti - RUN!' },
+];
+
 const SPRITE_FNS = {
   treeLarge: drawTreeLarge,
   treeSmall: drawTreeSmall,
@@ -104,6 +113,7 @@ export function render(ctx, viewport, game) {
       title: 'SKI FREE',
       hint: game.hint,
       lines: ['', game.controlHint],
+      legend: true,
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, game, {
@@ -122,9 +132,11 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines } = panel;
+  const { title, hint, lines, legend } = panel;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
+  const legendRows = legend ? Math.ceil(LEGEND.length / 2) : 0;
+  const legendHeight = legend ? 18 + legendRows * 26 : 0;
 
   // Determine which rows to render based on the active tab.
   let rows = [];
@@ -160,7 +172,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
   const cx = viewport.w / 2;
   const cy = viewport.h / 2;
   const w = Math.min(viewport.w - 40, 380);
-  const h = 90 + hintHeight + lines.length * 22 + lbHeight + 30;
+  const h = 90 + hintHeight + lines.length * 22 + legendHeight + lbHeight + 30;
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.strokeStyle = '#1a1a1a';
@@ -189,6 +201,34 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
   for (const line of lines) {
     ctx.fillText(line, cx, y);
     y += 22;
+  }
+
+  if (legend) {
+    ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('OBSTACLES', cx, y + 4);
+    y += 18;
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    const colW = (w - 32) / 2;
+    for (let i = 0; i < LEGEND.length; i++) {
+      const item = LEGEND[i];
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const ix = cx - w/2 + 16 + col * colW + 18;
+      const iy = y + row * 26 + 12;
+      // Sprite icon
+      ctx.save();
+      ctx.translate(ix, iy);
+      ctx.scale(0.55, 0.55);
+      item.draw(ctx);
+      ctx.restore();
+      // Label
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillText(item.label, ix + 18, iy + 4);
+    }
+    y += legendRows * 26;
+    ctx.textAlign = 'center';
   }
 
   if (board) {
