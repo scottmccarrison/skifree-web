@@ -1,5 +1,5 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab } from './game.js';
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
@@ -393,6 +393,11 @@ window.startMultiplayerGame = function(seed, session) {
   });
   session.on('peerLeft', e => {
     game.peerLeft = true;
+    // If we were spectating, the peer we were watching is gone - end our run.
+    if (game.spectating) {
+      if (game.state === 'playing') forceGameOver(game);
+      return;
+    }
     // If we are the joiner, the peer that just left was the host. Spec: hard
     // reset to title and reopen the lobby modal.
     if (!game.isHost) {

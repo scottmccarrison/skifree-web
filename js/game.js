@@ -70,6 +70,7 @@ export function createGame(seed) {
     lastSentT: 0,
     seq: 0,
     peerLeft: false,
+    diedSent: false,
   };
 }
 
@@ -106,8 +107,11 @@ export function updateGame(game, input, viewport, dt) {
     const difficulty = Math.min(3.5, 1 + game.elapsed / 30);
     const speedMult = Math.min(1.6, 1 + game.elapsed / 90);
 
-    updatePlayer(game.player, input, dt, speedMult);
-    updateWorld(game.world, game.player, viewport, difficulty);
+    if (!game.spectating) {
+      updatePlayer(game.player, input, dt, speedMult);
+    }
+    const cameraTarget = (game.spectating && game.remote) ? { x: game.remote.x, y: game.remote.y } : game.player;
+    updateWorld(game.world, cameraTarget, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
     if (hit) {
@@ -195,6 +199,7 @@ function resetMpState(game) {
     game.peerLeft = false;
     game.lastSentT = 0;
     game.seq = 0;
+    game.diedSent = false;
   }
 }
 
@@ -212,14 +217,30 @@ export function forceEndRun(game) {
   if (game.state === 'playing') endRun(game);
 }
 
+export function forceGameOver(game) {
+  if (game.state === 'gameover') return;
+  game.state = 'gameover';
+  game.spectating = false;
+  game.hint = pickHint();
+  game.deathCount += 1;
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
+    localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
+  } catch {}
+}
+
 function endRun(game) {
   if (game.spectating) return;
   if (game.state === 'gameover') return;
+  // MP: notify peer of our death once, regardless of which branch we take.
+  if (game.mode === 'mp' && game.session && !game.diedSent) {
+    try { game.session.sendDied(); } catch {}
+    game.diedSent = true;
+  }
   // Multiplayer: if the peer is still alive, become a spectator instead of
-  // ending the run. We notify the peer of our death and stop sending state.
+  // ending the run.
   if (game.mode === 'mp' && game.session && game.remote && game.remote.alive && !game.peerLeft) {
     game.spectating = true;
-    try { game.session.sendDied(); } catch {}
     return;
   }
 
