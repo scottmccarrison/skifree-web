@@ -52,6 +52,10 @@ export function initInput() {
     zone.addEventListener('touchmove',  (e) => e.preventDefault(), { passive: false });
 
     zone.addEventListener('pointerdown', (e) => {
+      // Mouse pointers should never steer or restart - desktop uses keyboard
+      // for play, and clicks for UI hit regions handled in main.js.
+      if (e.pointerType === 'mouse') return;
+
       // Restart from title/gameover - cleared each frame after consumption.
       input.restart = true;
       setTimeout(() => { input.restart = false; }, 100);
