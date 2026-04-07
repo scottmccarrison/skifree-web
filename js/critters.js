@@ -8,7 +8,7 @@
 // sync them over the network in MP.
 
 const SPAWN_AFTER_SCORE = 300;       // meters before any critter appears
-const BASE_SPEED = 120;              // horizontal world units / second
+const BASE_SPEED = 110;              // horizontal world units / second
 const MIN_INTERVAL = 4.0;            // seconds between spawns (early)
 const MAX_INTERVAL = 8.0;
 const HITBOX_W = 14;
@@ -50,8 +50,10 @@ export function updateCritters(critters, player, viewport, dt, score, speedMult)
   const fromLeft = Math.random() < 0.5;
   const halfW = viewport.w / 2;
   const x = player.x + (fromLeft ? -halfW - 20 : halfW + 20);
-  // Place ahead of the player by 60-160 world units (player descends into it).
-  const y = player.y + 60 + Math.random() * 100;
+  // Place far enough ahead that the squirrel is still mid-crossing when the
+  // player descends to its y line. Player vy is ~220-350/s and a squirrel
+  // takes ~1.7s to reach screen center, so 350-550 units ahead lines them up.
+  const y = player.y + 350 + Math.random() * 200;
   const vx = (fromLeft ? 1 : -1) * BASE_SPEED * speedMult;
   critters.list.push({ x, y, vx, w: HITBOX_W, h: HITBOX_H });
 }
