@@ -128,6 +128,18 @@ export function updateGame(game, input, viewport, dt) {
     // Single source of truth for the camera/world target. render.js reads
     // this so it never disagrees with what world generation is following.
     game.cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
+    // Smoothed camera position - exponential lerp toward target so the
+    // transition into spectator mode (and switches between remotes) glides
+    // instead of teleporting. Initialised to the target on first frame.
+    if (!game.cameraPos) {
+      game.cameraPos = { x: game.cameraTarget.x, y: game.cameraTarget.y };
+    } else {
+      // dt-aware exponential smoothing. k=12 -> ~150ms to settle.
+      const k = game.spectating ? 6 : 24;  // softer when spectating
+      const a = 1 - Math.exp(-k * dt);
+      game.cameraPos.x += (game.cameraTarget.x - game.cameraPos.x) * a;
+      game.cameraPos.y += (game.cameraTarget.y - game.cameraPos.y) * a;
+    }
     updateWorld(game.world, game.cameraTarget, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
@@ -255,15 +267,22 @@ export function pickSlowestAlive(game) {
   return slowest;
 }
 
-// Builds the cycle order: all remotes (id order) + local player at the end.
-// Includes crashed players per spec.
+// Builds the cycle order: alive remotes (id order) + local player if alive.
+// Crashed players are excluded - their world is empty (obstacles only spawn
+// around the active camera target) so spectating one shows a white screen.
 export function getSpectateCycle(game) {
   const order = [];
   if (game.remotes) {
     const sorted = Array.from(game.remotes.values()).sort((a, b) => a.id - b.id);
-    for (const r of sorted) order.push(r);
+    for (const r of sorted) {
+      if (!r.alive) continue;
+      order.push(r);
+    }
   }
-  order.push(game.player);
+  // Local player is only worth including when alive (and not spectating).
+  if (!game.spectating && game.player.state !== 'crashed') {
+    order.push(game.player);
+  }
   return order;
 }
 
@@ -305,6 +324,7 @@ function startRun(game) {
   resetYeti(game.yeti);
   resetCritters(game.critters);
   game.scoreSubmitted = false;
+  game.cameraPos = null;  // re-snap to player on first frame
   game.score = 0;
   game.startY = 0;
   game.elapsed = 0;

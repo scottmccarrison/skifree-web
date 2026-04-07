@@ -535,6 +535,25 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
 
+// Mobile Safari aggressively kills WebSockets when the tab backgrounds. On
+// return, if we still think we have an MP session but the socket is dead,
+// transparently rejoin the same room. The user comes back as a spectator
+// (server already saw them leave), which is much better than losing the
+// session entirely.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!mpSession) return;
+  if (!mpSession.closed) return;
+  const code = mpSession.code;
+  if (!code) return;
+  // Recreate the session targeting the same room. wireMpSession's welcome
+  // handler will detect inProgress and drop straight into spectator mode.
+  mpSession = createSession();
+  wireMpSession();
+  setMpStatus('Reconnecting...');
+  mpSession.join(code);
+});
+
 // Bridge from the lobby (WS3) into actual gameplay (WS4). Replaces the
 // current game object with a fresh seeded one, attaches the live session,
 // and wires gameplay-specific listeners onto it.
