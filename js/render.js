@@ -145,6 +145,7 @@ export function render(ctx, viewport, game) {
       legend: true,
       restart: true,
       restartLabel: 'START',
+      gift: true,
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, game, {
