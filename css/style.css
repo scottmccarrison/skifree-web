@@ -46,6 +46,11 @@ html, body {
   background: transparent;
 }
 
+#touch-zones.disabled,
+#touch-zones.disabled .tzone {
+  pointer-events: none;
+}
+
 #top-right {
   position: fixed;
   z-index: 10;

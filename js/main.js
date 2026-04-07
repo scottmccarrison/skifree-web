@@ -176,7 +176,7 @@ if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal
 const touchZonesEl = document.getElementById('touch-zones');
 function syncTouchZones() {
   if (!touchZonesEl) return;
-  touchZonesEl.style.pointerEvents = game.state === 'playing' ? 'auto' : 'none';
+  touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
 }
 
 let last = performance.now();
