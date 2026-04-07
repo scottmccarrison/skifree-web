@@ -340,7 +340,7 @@ html, body {
 }
 
 #changelog-body {
-  max-height: 45vh;
+  max-height: 180px;
   overflow-y: auto;
   font: 13px -apple-system, system-ui, sans-serif;
   color: var(--ink);
