@@ -135,6 +135,11 @@ function handleHit(r) {
     setLeaderboardTab(game, r.data);
   } else if (r.action === 'openChangelog') {
     openChangelog();
+  } else if (r.action === 'restart') {
+    // Pulse the input.restart flag for one frame so updateGame's existing
+    // title/gameover handler picks it up and starts a run.
+    input.restart = true;
+    setTimeout(() => { input.restart = false; }, 80);
   }
 }
 
@@ -165,12 +170,22 @@ function closeChangelog() {
 if (clClose) clClose.addEventListener('click', closeChangelog);
 if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal) closeChangelog(); });
 
+// Touch zones must not absorb taps on the title/gameover panel - otherwise
+// the user can't hit tab buttons or the gift icon. Toggle pointer-events
+// on the wrapper based on game state.
+const touchZonesEl = document.getElementById('touch-zones');
+function syncTouchZones() {
+  if (!touchZonesEl) return;
+  touchZonesEl.style.pointerEvents = game.state === 'playing' ? 'auto' : 'none';
+}
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateGame(game, input, viewport, dt);
   render(ctx, viewport, game);
+  syncTouchZones();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

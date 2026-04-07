@@ -141,15 +141,18 @@ export function render(ctx, viewport, game) {
     drawCenteredPanel(ctx, viewport, game, {
       title: 'SKI FREE',
       hint: game.hint,
-      lines: ['', game.controlHint],
+      lines: [],
       legend: true,
+      restart: true,
+      restartLabel: 'START',
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, game, {
       title: 'GAME OVER',
       hint: game.hint,
-      lines: [`${Math.floor(score)} m`, '', game.controlHint],
+      lines: [`${Math.floor(score)} m`],
       gift: true,
+      restart: true,
     });
   }
 }
@@ -181,7 +184,8 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend, gift } = panel;
+  const { title, hint, lines, legend, gift, restart, restartLabel } = panel;
+  const restartHeight = restart ? 44 : 0;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
   const legendRows = legend ? Math.ceil(LEGEND.length / 2) : 0;
@@ -222,7 +226,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
   const cx = viewport.w / 2;
   const cy = viewport.h / 2;
   const w = Math.min(viewport.w - 40, 380);
-  const h = 90 + hintHeight + lines.length * 22 + legendHeight + lbHeight + 30;
+  const h = 90 + hintHeight + lines.length * 22 + legendHeight + lbHeight + restartHeight + 30;
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.strokeStyle = '#1a1a1a';
@@ -349,13 +353,36 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     ctx.textAlign = 'center';
   }
 
+  // Restart button: prominent rectangle near the bottom of the panel.
+  if (restart) {
+    const btnW = Math.min(w - 64, 200);
+    const btnH = 36;
+    const bx = cx - btnW / 2;
+    const by = cy + h/2 - (gift ? 56 : 22) - btnH;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 8);
+    else ctx.rect(bx, by, btnW, btnH);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(restartLabel || 'RESTART', cx, by + btnH / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+    hitRegions.push({
+      x: bx, y: by, w: btnW, h: btnH,
+      action: 'restart', data: null,
+    });
+  }
+
   // Gift icon at the bottom of the panel: opens the changelog popup.
   if (gift) {
     const gx = cx;
     const gy = cy + h/2 - 18;
     drawGiftIcon(ctx, gx, gy);
     hitRegions.push({
-      x: gx - 14, y: gy - 14, w: 28, h: 28,
+      x: gx - 18, y: gy - 18, w: 36, h: 36,
       action: 'openChangelog', data: null,
     });
   }
