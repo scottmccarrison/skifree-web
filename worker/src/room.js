@@ -1,18 +1,21 @@
-// Room: Durable Object that relays WebSocket messages between up to 2 clients.
+// Room: Durable Object that relays WebSocket messages between up to 10 clients.
 // Hibernatable WS so the DO sleeps between messages.
 //
 // Message protocol (JSON):
 //   client -> DO: { type: 'hello', name?: string }
-//   DO -> client: { type: 'welcome', id, isHost, seed, peers: [{id, name}] }
-//   DO -> peers : { type: 'peerJoined', id, name }
+//   DO -> client: { type: 'welcome', id, isHost, color, seed, roster: [{id,name,color,isHost,ready}] }
+//   DO -> peers : { type: 'peerJoined', id, name, color }
 //   client -> DO: { type: 'ready' }
 //   DO -> all   : { type: 'peerReady', id }
-//   DO -> all   : { type: 'start', countdownMs: 3000 }   (when all ready)
+//   DO -> all   : { type: 'start', countdownMs: 3000, seed }   (when all ready)
 //   client -> DO: { type: 'state', ... }   (relayed verbatim to peers, with id added)
 //   client -> DO: { type: 'died' }         (relayed verbatim to peers, with id added)
+//   client -> DO: { type: 'kick', targetId } (host only)
+//   DO -> target: { type: 'kicked', reason }
 //   DO -> peers : { type: 'peerLeft', id, wasHost }   (on close)
 
-const MAX_CLIENTS = 2;
+const MAX_CLIENTS = 10;
+const COLOR_PALETTE_SIZE = 10;
 const IDLE_TTL_MS = 10 * 60 * 1000; // 10 min before first start
 const EMPTY_TTL_MS = 60 * 1000;     // 60s after empty
 
@@ -64,6 +67,16 @@ export class Room {
       return new Response('room full', { status: 409 });
     }
 
+    // Compute lowest unused color from existing sockets BEFORE accepting new one
+    const usedColors = new Set();
+    for (const ws of existing) {
+      const m = ws.deserializeAttachment() || {};
+      if (typeof m.color === 'number') usedColors.add(m.color);
+    }
+    let color = 0;
+    while (color < COLOR_PALETTE_SIZE && usedColors.has(color)) color++;
+    if (color >= COLOR_PALETTE_SIZE) color = 0; // fallback, shouldn't happen at MAX_CLIENTS=10
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
@@ -75,7 +88,7 @@ export class Room {
     }
 
     this.state.acceptWebSocket(server);
-    server.serializeAttachment({ id, name: null, ready: false, isHost: id === this.hostId });
+    server.serializeAttachment({ id, name: null, color, ready: false, isHost: id === this.hostId });
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -102,15 +115,19 @@ export class Room {
         meta.name = name;
         ws.serializeAttachment(meta);
 
-        const peers = this.peers().filter(p => p.id !== meta.id).map(p => ({ id: p.id, name: p.name }));
+        const roster = this.peers().sort((a, b) => a.id - b.id).map(p => ({
+          id: p.id, name: p.name, color: p.color, isHost: p.isHost, ready: p.ready
+        }));
+
         ws.send(JSON.stringify({
           type: 'welcome',
           id: meta.id,
           isHost: meta.isHost,
+          color: meta.color,
           seed: this.seed,
-          peers,
+          roster,
         }));
-        this.broadcastExcept(meta.id, { type: 'peerJoined', id: meta.id, name });
+        this.broadcastExcept(meta.id, { type: 'peerJoined', id: meta.id, name, color: meta.color });
         break;
       }
       case 'ready': {
@@ -132,6 +149,21 @@ export class Room {
           this.started = true;
           await this.state.storage.deleteAlarm();
           this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
+        }
+        break;
+      }
+      case 'kick': {
+        if (!meta.isHost) break; // silently ignore non-host kicks
+        const targetId = data.targetId;
+        if (typeof targetId !== 'number') break;
+        for (const ws2 of this.state.getWebSockets()) {
+          const m2 = ws2.deserializeAttachment() || {};
+          if (m2.id === targetId && !m2.isHost) {
+            try { ws2.send(JSON.stringify({ type: 'kicked', reason: 'host' })); } catch {}
+            try { ws2.close(1000, 'kicked'); } catch {}
+            // The webSocketClose handler will fire peerLeft to remaining peers
+            break;
+          }
         }
         break;
       }
@@ -169,7 +201,7 @@ export class Room {
   peers() {
     return this.state.getWebSockets().map(ws => {
       const m = ws.deserializeAttachment() || {};
-      return { id: m.id, name: m.name, ready: !!m.ready, isHost: !!m.isHost, ws };
+      return { id: m.id, name: m.name, color: m.color, ready: !!m.ready, isHost: !!m.isHost, ws };
     });
   }
   broadcast(obj) {
