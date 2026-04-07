@@ -1,4 +1,4 @@
-import { createPlayer, updatePlayer, crashPlayer, launchJump, isAirborne } from './player.js';
+import { createPlayer, updatePlayer, crashPlayer, launchJump, launchHop, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti } from './yeti.js';
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
@@ -101,6 +101,11 @@ export function updateGame(game, input, viewport, dt) {
     if (hit) {
       if (hit.type.kind === 'jump') {
         launchJump(game.player);
+      } else if (hit.type.kind === 'mogul') {
+        if (!hit.hopped && !isAirborne(game.player)) {
+          hit.hopped = true;
+          launchHop(game.player);
+        }
       } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
         captureCrashSnapshot(game);
         crashPlayer(game.player);

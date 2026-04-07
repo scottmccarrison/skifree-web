@@ -31,12 +31,30 @@ export function drawTreeSmall(ctx) {
 }
 
 export function drawMogul(ctx) {
-  ctx.fillStyle = '#cfe1f0';
+  // Half-moon bump: lit top half + shaded base, reads as a 3D mound rather
+  // than a flat puddle.
+  ctx.fillStyle = '#f4faff';
   ctx.beginPath();
-  ctx.ellipse(0, 0, 14, 6, 0, 0, Math.PI * 2);
+  ctx.arc(0, 2, 14, Math.PI, 2 * Math.PI);
+  ctx.lineTo(-14, 2);
+  ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = '#9bb4c8';
+  // Shaded base lip
+  ctx.fillStyle = '#a8c0d4';
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 14, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Outline
+  ctx.strokeStyle = '#6f8aa0';
   ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 2, 14, Math.PI, 2 * Math.PI);
+  ctx.stroke();
+  // Highlight streak
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 2, 10, Math.PI * 1.15, Math.PI * 1.55);
   ctx.stroke();
 }
 
