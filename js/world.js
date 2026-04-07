@@ -81,6 +81,29 @@ export function updateWorld(world, player, viewport, difficulty = 1) {
   }
 }
 
+// Minimum gap (world units) between any two obstacle hit boxes.
+const MIN_GAP = 14;
+
+function overlapsExisting(world, t, x, y) {
+  const ah = t.hit;
+  const ax0 = x + ah.dx - ah.w / 2 - MIN_GAP;
+  const ax1 = x + ah.dx + ah.w / 2 + MIN_GAP;
+  const ay0 = y + ah.dy - ah.h / 2 - MIN_GAP;
+  const ay1 = y + ah.dy + ah.h / 2 + MIN_GAP;
+  // Only need to test obstacles within a chunk's reach (cheap linear scan -
+  // chunks are small and the overall list is bounded by the cull region).
+  for (const o of world.obstacles) {
+    if (Math.abs(o.x - x) > 80 || Math.abs(o.y - y) > 80) continue;
+    const bh = o.type.hit;
+    const bx0 = o.x + bh.dx - bh.w / 2;
+    const bx1 = o.x + bh.dx + bh.w / 2;
+    const by0 = o.y + bh.dy - bh.h / 2;
+    const by1 = o.y + bh.dy + bh.h / 2;
+    if (ax0 < bx1 && ax1 > bx0 && ay0 < by1 && ay1 > by0) return true;
+  }
+  return false;
+}
+
 function spawnChunk(world, cx, cy, difficulty) {
   // Player starts at (0, 0). Keep the very first chunks empty so they
   // can't crash on spawn.
@@ -92,11 +115,20 @@ function spawnChunk(world, cx, cy, difficulty) {
   const count = 2 + Math.floor(Math.random() * (2 + difficulty));
   for (let i = 0; i < count; i++) {
     const t = pickType();
-    world.obstacles.push({
-      type: t,
-      x: x0 + Math.random() * CHUNK,
-      y: y0 + Math.random() * CHUNK,
-    });
+    // Rejection sample: try a handful of positions, skip if all overlap.
+    let placed = false;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const x = x0 + Math.random() * CHUNK;
+      const y = y0 + Math.random() * CHUNK;
+      if (!overlapsExisting(world, t, x, y)) {
+        world.obstacles.push({ type: t, x, y });
+        placed = true;
+        break;
+      }
+    }
+    // If we couldn't fit it, just drop the spawn for this slot - keeps the
+    // map breathable rather than forcing a juxtaposition.
+    void placed;
   }
 }
 
