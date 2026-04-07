@@ -11,9 +11,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    // Redirect bare /ski to /ski/ so relative asset paths resolve correctly.
+    if (url.pathname === '/ski') {
+      return Response.redirect(url.origin + '/ski/', 301);
+    }
+
     // Strip the /ski prefix when bound to mccarrison.me/ski/*
     let path = url.pathname;
-    if (path.startsWith('/ski')) path = path.slice(4) || '/';
+    if (path.startsWith('/ski/')) path = path.slice(4) || '/';
+    else if (path === '/ski') path = '/';
 
     if (path === '/api/leaderboard' && request.method === 'GET') {
       return getLeaderboard(env);
@@ -22,8 +28,12 @@ export default {
       return postScore(request, env);
     }
 
-    // Static assets - delegate to the [assets] binding.
-    return env.ASSETS.fetch(request);
+    // Static assets - rewrite the request URL so the asset bundle (which
+    // has files at /js/main.js, /css/style.css, etc.) is asked for the
+    // stripped path, not the /ski-prefixed one.
+    const assetUrl = new URL(request.url);
+    assetUrl.pathname = path;
+    return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
   },
 };
 
