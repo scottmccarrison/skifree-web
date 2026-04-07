@@ -23,7 +23,7 @@ export function createYeti(seed) {
   };
 }
 
-export function updateYeti(yeti, player, dt, difficulty = 1) {
+export function updateYeti(yeti, player, dt, difficulty = 1, speedMult = 1) {
   if (!yeti.active) {
     yeti.spawnTimer += dt;
     if (yeti.spawnTimer >= SPAWN_AFTER_SECONDS) {
@@ -42,7 +42,10 @@ export function updateYeti(yeti, player, dt, difficulty = 1) {
   // so a player going straight stays ahead - but turning, hitting moguls, or
   // weaving around trees lets the yeti close the gap. Difficulty adds a small
   // bonus so the chase tightens later in the run.
-  const speed = BASE_CHASE_SPEED + difficulty * 18;
+  // Scale by the *target's* current speedMult so the yeti tracks the player
+  // it's actually chasing - in MP that's the slowest alive player. Without
+  // this the yeti gets left in the dust as the world speeds up.
+  const speed = (BASE_CHASE_SPEED + difficulty * 18) * speedMult;
   const dx = player.x - yeti.x;
   const dy = player.y - yeti.y;
   const dist = Math.hypot(dx, dy) || 1;

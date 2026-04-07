@@ -61,7 +61,15 @@ const fbStatus = document.getElementById('fb-status');
 const fbSend = document.getElementById('fb-send');
 const fbCancel = document.getElementById('fb-cancel');
 
+// Track whether opening feedback paused an in-progress solo run, so we can
+// resume it on close. MP never pauses - peers would desync from a frozen host.
+let feedbackPausedRun = false;
+
 function openFeedback() {
+  if (game && game.mode !== 'mp' && game.state === 'playing') {
+    game.state = 'paused';
+    feedbackPausedRun = true;
+  }
   fbStatus.textContent = '';
   fbText.value = '';
   fbSend.disabled = false;
@@ -72,6 +80,10 @@ function openFeedback() {
 
 function closeFeedback() {
   fbModal.classList.add('hidden');
+  if (feedbackPausedRun && game && game.state === 'paused') {
+    game.state = 'playing';
+  }
+  feedbackPausedRun = false;
 }
 
 // "what's new" indicator: pulse the ? button until the user opens the modal
@@ -518,6 +530,7 @@ window.startMultiplayerGame = function(seed, session) {
       x: 0, y: 0,
       state: 'straight',
       score: 0,
+      speedMult: 1,
       alive: true,
       prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
     });
@@ -538,7 +551,7 @@ window.startMultiplayerGame = function(seed, session) {
       const meta = (session.roster || []).find(p => p.id === e.id) || {};
       r = {
         id: e.id, name: meta.name || `anon${e.id}`, color: meta.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       };
       game.remotes.set(e.id, r);
@@ -552,6 +565,7 @@ window.startMultiplayerGame = function(seed, session) {
     r.y = e.y;
     if (e.state) r.state = e.state;
     if (typeof e.score === 'number') r.score = e.score;
+    if (typeof e.speedMult === 'number') r.speedMult = e.speedMult;
     r.lastT = performance.now() / 1000;
     // Non-host: yeti rides along on the host's broadcast.
     if (!game.isHost && e.yeti) {
@@ -581,7 +595,7 @@ window.startMultiplayerGame = function(seed, session) {
     if (!game.remotes.has(e.id)) {
       game.remotes.set(e.id, {
         id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       });
     }
