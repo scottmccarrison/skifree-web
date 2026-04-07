@@ -6,7 +6,8 @@ export function createPlayer() {
     y: 0,             // vertical, increases as you ski down
     state: 'straight',
     crashTimer: 0,    // seconds remaining of crash recovery
-    airTime: 0,       // seconds remaining of jump (invulnerable + boosted)
+    airTime: 0,       // seconds remaining of jump (invulnerable; boosted only if !hopping)
+    hopping: false,   // true when airborne from a mogul (no speed boost)
     idleTime: 0,      // seconds since last left/right input
     // Tight hit box centered on the skis' contact patch (not the whole body),
     // expressed as offsets from (x, y) and full width/height.
@@ -32,9 +33,21 @@ const FORWARD_SPEED = {
 
 const JUMP_DURATION = 0.7;
 const JUMP_SPEED_MULT = 1.45;
+const HOP_DURATION = 0.28;
 
 export function launchJump(player) {
-  if (player.airTime <= 0) player.airTime = JUMP_DURATION;
+  if (player.airTime <= 0) {
+    player.airTime = JUMP_DURATION;
+    player.hopping = false;
+  }
+}
+
+// Smaller hop for moguls: brief lift + invuln window, no speed boost.
+export function launchHop(player) {
+  if (player.airTime <= 0) {
+    player.airTime = HOP_DURATION;
+    player.hopping = true;
+  }
 }
 
 export function isAirborne(player) {
@@ -76,11 +89,14 @@ export function updatePlayer(player, input, dt, speedMult = 1) {
   }
 
   // Tick airborne timer.
-  if (player.airTime > 0) player.airTime = Math.max(0, player.airTime - dt);
+  if (player.airTime > 0) {
+    player.airTime = Math.max(0, player.airTime - dt);
+    if (player.airTime === 0) player.hopping = false;
+  }
 
   const vx = TURN_SPEED_X[player.state] || 0;
   let baseVy = FORWARD_SPEED[player.state] || 200;
-  if (player.airTime > 0) baseVy *= JUMP_SPEED_MULT;
+  if (player.airTime > 0 && !player.hopping) baseVy *= JUMP_SPEED_MULT;
   const vy = baseVy * speedMult;
 
   player.x += vx * dt;

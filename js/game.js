@@ -1,9 +1,11 @@
-import { createPlayer, updatePlayer, crashPlayer, launchJump, isAirborne } from './player.js';
+import { createPlayer, updatePlayer, crashPlayer, launchJump, launchHop, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti } from './yeti.js';
-import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
+import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
+import { captureCrashSnapshot } from './diagnostics.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
+const DEATH_COUNT_KEY = 'skifree.deathCount';
 
 const HINTS = [
   // What to avoid
@@ -49,19 +51,28 @@ export function createGame() {
     startY: 0,
     elapsed: 0,
     highScore: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
+    deathCount: Number(localStorage.getItem(DEATH_COUNT_KEY) || 0),
     controlHint: 'press any key or tap to start',
     hint: pickHint(),
-    leaderboard: null,        // array of {name, score, created_at} or null
+    leaderboard: null,        // normalized board: {daily, alltime, topEver, resetsAt, serverNow} or null
     leaderboardLoading: false,
+    leaderboardTab: 'daily',  // 'daily' | 'alltime' | 'you'
+    personalBests: getPersonalBests(),
   };
 }
 
 export function loadLeaderboard(game) {
   game.leaderboardLoading = true;
-  fetchLeaderboard().then(scores => {
+  fetchLeaderboard().then(board => {
     game.leaderboardLoading = false;
-    if (scores) game.leaderboard = scores;
+    if (board) game.leaderboard = board;
   });
+}
+
+export function setLeaderboardTab(game, tab) {
+  if (tab === 'daily' || tab === 'alltime' || tab === 'you') {
+    game.leaderboardTab = tab;
+  }
 }
 
 export function updateGame(game, input, viewport, dt) {
@@ -90,7 +101,13 @@ export function updateGame(game, input, viewport, dt) {
     if (hit) {
       if (hit.type.kind === 'jump') {
         launchJump(game.player);
+      } else if (hit.type.kind === 'mogul') {
+        if (!hit.hopped && !isAirborne(game.player)) {
+          hit.hopped = true;
+          launchHop(game.player);
+        }
       } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
+        captureCrashSnapshot(game);
         crashPlayer(game.player);
         endRun(game);
         return;
@@ -135,15 +152,18 @@ export function forceEndRun(game) {
 function endRun(game) {
   game.state = 'gameover';
   game.hint = pickHint();
+  game.deathCount += 1;
   localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
+  localStorage.setItem(DEATH_COUNT_KEY, String(game.deathCount));
 
   const finalScore = Math.floor(game.score);
   const name = getStoredName().trim() || 'anon';
+  game.personalBests = recordPersonalBest(finalScore);
   if (finalScore > 0) {
     game.leaderboardLoading = true;
-    submitScore(name, finalScore).then(scores => {
+    submitScore(name, finalScore).then(board => {
       game.leaderboardLoading = false;
-      if (scores) game.leaderboard = scores;
+      if (board) game.leaderboard = board;
     });
   }
 }

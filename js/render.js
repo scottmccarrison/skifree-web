@@ -2,6 +2,16 @@ import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
   drawPlayer, drawYeti,
 } from './sprites.js';
+import { getStoredName } from './leaderboard.js';
+
+const LEGEND = [
+  { draw: drawTreeLarge, label: 'tree - CRASH' },
+  { draw: drawRock,      label: 'rock - CRASH' },
+  { draw: drawStump,     label: 'stump - CRASH' },
+  { draw: drawJump,      label: 'log - JUMP (boost)' },
+  { draw: drawMogul,     label: 'mogul - HOP (bump)' },
+  { draw: drawYeti,      label: 'yeti - RUN!' },
+];
 
 const SPRITE_FNS = {
   treeLarge: drawTreeLarge,
@@ -12,25 +22,58 @@ const SPRITE_FNS = {
   jump: drawJump,
 };
 
-export function render(ctx, viewport, game) {
-  const { player, world, yeti, state, score, highScore } = game;
+// Hit regions registered each frame so the canvas click handler in main.js
+// can map clicks to UI actions. Each entry: {x, y, w, h, action, data}.
+export const hitRegions = [];
 
-  // Stage progression: every 1000m the snow gets darker. After stage 5, the
-  // background is black and we invert the whole scene for a "night mode" feel.
-  const stage = Math.floor(score / 1000);
+export function render(ctx, viewport, game) {
+  hitRegions.length = 0;
+  const { player, world, yeti, state, score, highScore, deathCount } = game;
+
+  // Progression layers: every 1000m unlocks a new visual element so the
+  // player can feel how far they've gone without watching the score.
+  // Bands cycle every 6000m so the visual journey continues forever.
+  const bandScore = score % 6000;
+  const stage = Math.floor(bandScore / 1000);
+  const cycle = Math.floor(score / 6000);
   const inverted = stage >= 5;
+
   let bg;
   if (inverted) {
-    // White here - the difference-with-white pass below flips it (and the
-    // sprites) to black-with-inverted-colors.
     bg = '#ffffff';
+  } else if (stage >= 4) {
+    // Aurora tint (purple/teal wash) at 4-5k.
+    bg = `rgb(180, 200, 230)`;
   } else {
-    // 244 -> ~120 across 5 steps.
-    const v = Math.max(120, 244 - stage * 25);
+    // 244 -> 150 across 4 steps.
+    const v = Math.max(150, 244 - stage * 24);
     bg = `rgb(${v}, ${v + 4}, ${v + 8})`;
   }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
+
+  // Aurora streaks (stage 4).
+  if (stage === 4) {
+    const t = (game.elapsed || 0) * 0.6;
+    for (let i = 0; i < 3; i++) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      const grad = ctx.createLinearGradient(0, 0, viewport.w, 0);
+      grad.addColorStop(0, '#7be6c4');
+      grad.addColorStop(0.5, '#a98cf0');
+      grad.addColorStop(1, '#7be6c4');
+      ctx.fillStyle = grad;
+      const yy = 40 + i * 50 + Math.sin(t + i) * 10;
+      ctx.fillRect(0, yy, viewport.w, 12);
+      ctx.restore();
+    }
+  }
+
+  // Drifting snowflakes (stage 1+).
+  if (state === 'playing' && stage >= 1) {
+    const flakeCount = Math.min(40, 8 + stage * 8);
+    drawSnowflakes(ctx, viewport, game.elapsed || 0, flakeCount);
+  }
 
   // Camera: player drawn at ~1/3 from top, x centered.
   const camX = player.x - viewport.w / 2;
@@ -91,35 +134,98 @@ export function render(ctx, viewport, game) {
   ctx.fillText(`${Math.floor(score)} m`, 16, 28);
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
+  ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
 
   // State overlays.
   if (state === 'title') {
-    drawCenteredPanel(ctx, viewport, {
+    drawCenteredPanel(ctx, viewport, game, {
       title: 'SKI FREE',
       hint: game.hint,
-      lines: ['', game.controlHint],
-      leaderboard: game.leaderboard,
+      lines: [],
+      legend: true,
+      restart: true,
+      restartLabel: 'START',
     });
   } else if (state === 'gameover') {
-    drawCenteredPanel(ctx, viewport, {
+    drawCenteredPanel(ctx, viewport, game, {
       title: 'GAME OVER',
       hint: game.hint,
-      lines: [`${Math.floor(score)} m`, '', game.controlHint],
-      leaderboard: game.leaderboard,
+      lines: [`${Math.floor(score)} m`],
+      restart: true,
     });
   }
 }
 
-function drawCenteredPanel(ctx, viewport, panel) {
-  const { title, hint, lines, leaderboard } = panel;
-  const lbRows = leaderboard ? Math.min(10, leaderboard.length) : 0;
-  const lbHeight = leaderboard ? 28 + lbRows * 18 : 0;
+function drawSnowflakes(ctx, viewport, t, count) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  for (let i = 0; i < count; i++) {
+    // Deterministic per-flake offsets so they don't strobe.
+    const seed = i * 12.9898;
+    const sx = ((Math.sin(seed) * 43758) % 1 + 1) % 1;
+    const sy = ((Math.sin(seed + 1.7) * 43758) % 1 + 1) % 1;
+    const speed = 20 + ((i * 7) % 30);
+    const x = sx * viewport.w + Math.sin(t * 0.5 + i) * 8;
+    const y = (sy * viewport.h + t * speed) % viewport.h;
+    const r = 1.2 + ((i * 3) % 3) * 0.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function formatResetIn(ms) {
+  if (ms <= 0) return 'resetting...';
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `resets in ${h}h ${m}m`;
+}
+
+function drawCenteredPanel(ctx, viewport, game, panel) {
+  const { title, hint, lines, legend, restart, restartLabel } = panel;
+  const restartHeight = restart ? 44 : 0;
+  const board = game.leaderboard;
+  const tab = game.leaderboardTab || 'daily';
+  const legendRows = legend ? Math.ceil(LEGEND.length / 2) : 0;
+  const legendHeight = legend ? 18 + legendRows * 26 : 0;
+
+  // Determine which rows to render based on the active tab.
+  let rows = [];
+  let emptyText = 'be the first!';
+  let footer = '';
+  let topEverHeader = null;
+  if (board) {
+    if (tab === 'daily') {
+      rows = board.daily || [];
+      if (board.resetsAt) footer = formatResetIn(board.resetsAt - Date.now());
+      emptyText = 'no runs today - go!';
+    } else if (tab === 'alltime') {
+      rows = board.alltime || [];
+      if (board.topEver) {
+        topEverHeader = board.topEver;
+      }
+    } else if (tab === 'you') {
+      const pbName = (getStoredName().trim() || 'anon').toLowerCase();
+      rows = (game.personalBests || []).map(pb => ({
+        name: pbName,
+        score: pb.score,
+        created_at: pb.at,
+      }));
+      emptyText = 'no personal bests yet';
+    }
+  }
+
+  const lbRows = Math.min(10, rows.length);
+  const tabsHeight = board ? 30 : 0;
+  const headerHeight = topEverHeader ? 22 : 0;
+  const lbHeight = board ? tabsHeight + headerHeight + 18 + lbRows * 18 + (footer ? 18 : 0) + 8 : 0;
   const hintHeight = hint ? 28 : 0;
 
   const cx = viewport.w / 2;
   const cy = viewport.h / 2;
   const w = Math.min(viewport.w - 40, 380);
-  const h = 90 + hintHeight + lines.length * 22 + lbHeight + 30;
+  const h = 90 + hintHeight + lines.length * 22 + legendHeight + lbHeight + restartHeight + 30;
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.strokeStyle = '#1a1a1a';
@@ -150,30 +256,148 @@ function drawCenteredPanel(ctx, viewport, panel) {
     y += 22;
   }
 
-  if (leaderboard) {
-    y += 8;
-    ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
-    ctx.fillText('TOP 10', cx, y);
+  if (legend) {
+    ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('OBSTACLES', cx, y + 4);
     y += 18;
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    const colW = (w - 32) / 2;
+    for (let i = 0; i < LEGEND.length; i++) {
+      const item = LEGEND[i];
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const ix = cx - w/2 + 16 + col * colW + 18;
+      const iy = y + row * 26 + 12;
+      // Sprite icon
+      ctx.save();
+      ctx.translate(ix, iy);
+      ctx.scale(0.55, 0.55);
+      item.draw(ctx);
+      ctx.restore();
+      // Label
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillText(item.label, ix + 18, iy + 4);
+    }
+    y += legendRows * 26;
+    ctx.textAlign = 'center';
+  }
+
+  if (board) {
+    y += 4;
+    // Tabs.
+    const tabs = [
+      { key: 'daily',   label: 'DAILY' },
+      { key: 'alltime', label: 'ALL TIME' },
+      { key: 'you',     label: 'PERSONAL' },
+    ];
+    const tabW = (w - 32) / tabs.length;
+    const tabY = y;
+    ctx.font = 'bold 12px -apple-system, system-ui, sans-serif';
+    for (let i = 0; i < tabs.length; i++) {
+      const t = tabs[i];
+      const tx = cx - w/2 + 16 + i * tabW;
+      const active = t.key === tab;
+      ctx.fillStyle = active ? '#1a1a1a' : 'rgba(0,0,0,0.08)';
+      ctx.fillRect(tx + 2, tabY, tabW - 4, 22);
+      ctx.fillStyle = active ? '#fff' : '#1a1a1a';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.label, tx + tabW/2, tabY + 15);
+      hitRegions.push({
+        x: tx + 2, y: tabY, w: tabW - 4, h: 22,
+        action: 'setTab', data: t.key,
+      });
+    }
+    ctx.fillStyle = '#1a1a1a';
+    y += tabsHeight;
+
+    // All-time tab: persistent top-ever crown header.
+    if (topEverHeader && tab === 'alltime') {
+      ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      const name = (topEverHeader.name || 'anon').slice(0, 14);
+      ctx.fillText(`top: ${name} - ${topEverHeader.score} m`, cx, y + 14);
+      y += headerHeight;
+    }
+
     ctx.font = '13px ui-monospace, Menlo, Consolas, monospace';
     ctx.textAlign = 'left';
     const colLeft = cx - w/2 + 24;
     const colRight = cx + w/2 - 24;
+    y += 4;
     for (let i = 0; i < lbRows; i++) {
-      const row = leaderboard[i];
+      const row = rows[i];
       const rank = String(i + 1).padStart(2, ' ');
       const name = (row.name || 'anon').slice(0, 14);
       const sc = `${row.score} m`;
-      ctx.fillText(`${rank}. ${name}`, colLeft, y);
+      ctx.fillText(`${rank}. ${name}`, colLeft, y + 14);
       ctx.textAlign = 'right';
-      ctx.fillText(sc, colRight, y);
+      ctx.fillText(sc, colRight, y + 14);
       ctx.textAlign = 'left';
       y += 18;
     }
     if (lbRows === 0) {
       ctx.textAlign = 'center';
-      ctx.fillText('be the first!', cx, y);
+      ctx.fillText(emptyText, cx, y + 14);
+      y += 18;
+    }
+    if (footer) {
+      ctx.textAlign = 'center';
+      ctx.font = 'italic 11px -apple-system, system-ui, sans-serif';
+      ctx.fillStyle = '#555';
+      ctx.fillText(footer, cx, y + 14);
+      ctx.fillStyle = '#1a1a1a';
     }
     ctx.textAlign = 'center';
   }
+
+  // Restart button: always bottom-center, fixed position regardless of gift.
+  if (restart) {
+    const btnW = Math.min(w - 64, 200);
+    const btnH = 36;
+    const bx = cx - btnW / 2;
+    const by = cy + h/2 - 22 - btnH;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 8);
+    else ctx.rect(bx, by, btnW, btnH);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(restartLabel || 'RESTART', cx, by + btnH / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+    hitRegions.push({
+      x: bx, y: by, w: btnW, h: btnH,
+      action: 'restart', data: null,
+    });
+  }
+
+}
+
+function drawGiftIcon(ctx, x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#cc1f1f';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.2;
+  ctx.fillRect(-10, -6, 20, 14);
+  ctx.strokeRect(-10, -6, 20, 14);
+  ctx.fillStyle = '#ffd400';
+  ctx.fillRect(-2, -6, 4, 14);
+  ctx.fillRect(-10, -2, 20, 3);
+  ctx.beginPath();
+  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }

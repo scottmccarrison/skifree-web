@@ -1,7 +1,9 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun } from './game.js';
-import { render } from './render.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab } from './game.js';
+import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
+import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
+import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -70,7 +72,30 @@ function closeFeedback() {
   fbModal.classList.add('hidden');
 }
 
-document.getElementById('help-btn').addEventListener('click', openFeedback);
+// "what's new" indicator: pulse the ? button until the user opens the modal
+// after a release. Tracked in localStorage by version string.
+const CHANGELOG_SEEN_KEY = 'skifree.changelogSeen';
+const helpBtn = document.getElementById('help-btn');
+function refreshChangelogBadge() {
+  const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
+  if (seen !== LATEST_VERSION) {
+    helpBtn.classList.add('has-update');
+    helpBtn.setAttribute('title', "what's new - tap to see updates");
+  } else {
+    helpBtn.classList.remove('has-update');
+    helpBtn.setAttribute('title', 'report a bug or suggestion');
+  }
+}
+function markChangelogSeen() {
+  localStorage.setItem(CHANGELOG_SEEN_KEY, LATEST_VERSION);
+  refreshChangelogBadge();
+}
+refreshChangelogBadge();
+
+document.getElementById('help-btn').addEventListener('click', () => {
+  openFeedback();
+  markChangelogSeen();
+});
 fbCancel.addEventListener('click', closeFeedback);
 fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
 fbText.addEventListener('keydown', (e) => e.stopPropagation());
@@ -91,7 +116,7 @@ fbSend.addEventListener('click', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         message,
-        meta: `device: ${navigator.userAgent}\nviewport: ${window.innerWidth}x${window.innerHeight}`,
+        meta: buildDiagnosticsMeta(game),
       }),
     });
     if (!r.ok) throw new Error('http ' + r.status);
@@ -109,12 +134,80 @@ document.getElementById('title-button').addEventListener('click', () => {
   forceEndRun(game);
 });
 
+// UI hit-region dispatch. Uses pointerup (not click) because iOS Safari
+// doesn't synthesize click events on the canvas reliably for touch input.
+window.addEventListener('pointerup', (e) => {
+  if (game.state === 'playing') return;
+  // Don't hijack interactions with real DOM controls.
+  if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #changelog-modal, #title-button')) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  for (const r of hitRegions) {
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+      handleHit(r);
+      e.stopPropagation();
+      return;
+    }
+  }
+});
+
+function handleHit(r) {
+  if (r.action === 'setTab') {
+    setLeaderboardTab(game, r.data);
+  } else if (r.action === 'openChangelog') {
+    openChangelog();
+  } else if (r.action === 'restart') {
+    // Pulse the input.restart flag for one frame so updateGame's existing
+    // title/gameover handler picks it up and starts a run.
+    input.restart = true;
+    setTimeout(() => { input.restart = false; }, 80);
+  }
+}
+
+// Changelog modal: populate body once, wire close handlers.
+const clModal = document.getElementById('changelog-modal');
+const clBody = document.getElementById('changelog-body');
+const clClose = document.getElementById('changelog-close');
+
+function renderChangelog() {
+  if (!clBody) return;
+  const html = CHANGELOG.map(v => {
+    const items = v.items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
+    return `<div class="cl-version"><div class="cl-ver">${escapeHtml(v.version)}</div><ul>${items}</ul></div>`;
+  }).join('');
+  clBody.innerHTML = html;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+renderChangelog();
+
+function openChangelog() {
+  if (clModal) clModal.classList.remove('hidden');
+}
+function closeChangelog() {
+  if (clModal) clModal.classList.add('hidden');
+}
+if (clClose) clClose.addEventListener('click', closeChangelog);
+if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal) closeChangelog(); });
+
+// Touch zones must not absorb taps on the title/gameover panel - otherwise
+// the user can't hit tab buttons or the gift icon. Toggle pointer-events
+// on the wrapper based on game state.
+const touchZonesEl = document.getElementById('touch-zones');
+function syncTouchZones() {
+  if (!touchZonesEl) return;
+  touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
+}
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateGame(game, input, viewport, dt);
   render(ctx, viewport, game);
+  syncTouchZones();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -46,6 +46,11 @@ html, body {
   background: transparent;
 }
 
+#touch-zones.disabled,
+#touch-zones.disabled .tzone {
+  pointer-events: none;
+}
+
 #top-right {
   position: fixed;
   z-index: 10;
@@ -92,6 +97,28 @@ html, body {
 #help-btn:hover {
   background: #fff;
   border-color: rgba(26, 26, 26, 0.9);
+}
+
+#help-btn.has-update {
+  position: relative;
+  background: #ffd400;
+  border-color: #1a1a1a;
+  animation: helpPulse 1.6s ease-in-out infinite;
+}
+#help-btn.has-update::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  background: #cc1f1f;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+@keyframes helpPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 212, 0, 0.7); }
+  50%      { box-shadow: 0 0 0 8px rgba(255, 212, 0, 0); }
 }
 
 #title-button {
@@ -195,3 +222,19 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+#changelog-body {
+  max-height: 30vh;
+  overflow-y: auto;
+  font: 13px -apple-system, system-ui, sans-serif;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.fb-divider {
+  border-top: 1px solid rgba(26,26,26,0.15);
+  margin: 12px 0;
+}
+.cl-version { margin-bottom: 10px; }
+.cl-ver { font-weight: bold; margin-bottom: 4px; }
+#changelog-body ul { margin: 0 0 0 18px; padding: 0; }
+#changelog-body li { margin: 2px 0; }
