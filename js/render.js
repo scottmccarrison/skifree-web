@@ -26,9 +26,9 @@ const SPRITE_FNS = {
 // can map clicks to UI actions. Each entry: {x, y, w, h, action, data}.
 export const hitRegions = [];
 
-// Lerp/extrapolate a remote player's position based on the last two snapshots.
-// Caps t at 1.0 so we don't fly past the latest known point.
 function lerpRemote(remote) {
+  // Interpolate from prev->cur over the snapshot interval. Lags one snapshot
+  // for smoothness; if no prev, just return cur.
   if (!remote.prevT || !remote.lastT || remote.lastT === remote.prevT) {
     return { x: remote.x, y: remote.y };
   }
@@ -36,8 +36,8 @@ function lerpRemote(remote) {
   const span = remote.lastT - remote.prevT;
   const t = Math.min(1, Math.max(0, (now - remote.lastT) / span));
   return {
-    x: remote.prevX + (remote.x - remote.prevX) * (1 + t),
-    y: remote.prevY + (remote.y - remote.prevY) * (1 + t),
+    x: remote.prevX + (remote.x - remote.prevX) * t,
+    y: remote.prevY + (remote.y - remote.prevY) * t,
   };
 }
 

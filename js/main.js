@@ -211,6 +211,10 @@ let mpSession = null;
 function openMpModal() {
   showMpStage('choose');
   document.getElementById('mp-modal').classList.remove('hidden');
+  const cancel = document.getElementById('mp-cancel');
+  if (cancel) cancel.disabled = false;
+  const ready = document.getElementById('mp-ready');
+  if (ready) { ready.style.display = ''; ready.disabled = true; }
 }
 function closeMpModal() {
   document.getElementById('mp-modal').classList.add('hidden');
@@ -279,12 +283,29 @@ function wireMpSession() {
     setMpStatus('Friend is ready...');
   });
   mpSession.on('start', e => {
-    document.getElementById('mp-modal').classList.add('hidden');
-    if (typeof window.startMultiplayerGame === 'function') {
-      window.startMultiplayerGame(mpSession.seed, mpSession);
-    } else {
-      console.warn('[mp] startMultiplayerGame not yet implemented (WS4)');
-    }
+    const ms = (e && typeof e.countdownMs === 'number') ? e.countdownMs : 3000;
+    const cancelBtn = document.getElementById('mp-cancel');
+    if (cancelBtn) cancelBtn.disabled = true;
+    const ready = document.getElementById('mp-ready');
+    if (ready) ready.style.display = 'none';
+    let n = Math.ceil(ms / 1000);
+    setMpStatus('Starting in ' + n + '...');
+    const tick = setInterval(() => {
+      n -= 1;
+      if (n > 0) setMpStatus('Starting in ' + n + '...');
+      else setMpStatus('GO!');
+    }, 1000);
+    setTimeout(() => {
+      clearInterval(tick);
+      document.getElementById('mp-modal').classList.add('hidden');
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (ready) ready.style.display = '';
+      if (typeof window.startMultiplayerGame === 'function') {
+        window.startMultiplayerGame(mpSession.seed, mpSession);
+      } else {
+        console.warn('[mp] startMultiplayerGame not yet implemented (WS4)');
+      }
+    }, ms);
   });
   mpSession.on('peerLeft', () => {
     setMpStatus('Friend left');

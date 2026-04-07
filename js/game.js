@@ -118,7 +118,7 @@ export function updateGame(game, input, viewport, dt) {
           hit.hopped = true;
           launchHop(game.player);
         }
-      } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
+      } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0 && !game.spectating) {
         captureCrashSnapshot(game);
         crashPlayer(game.player);
         endRun(game);
@@ -128,14 +128,14 @@ export function updateGame(game, input, viewport, dt) {
 
     if (game.mode !== 'mp' || game.isHost) {
       const eaten = updateYeti(game.yeti, game.player, dt, difficulty);
-      if (eaten) {
+      if (eaten && !game.spectating) {
         endRun(game);
         return;
       }
     } else {
       // Non-host MP: yeti position is driven by network messages.
       // Still run an identical collision check locally so deaths are responsive.
-      if (checkYetiCollision(game.yeti, game.player)) {
+      if (!game.spectating && checkYetiCollision(game.yeti, game.player)) {
         crashPlayer(game.player);
         endRun(game);
         return;
@@ -174,9 +174,27 @@ export function updateGame(game, input, viewport, dt) {
 
   if (game.state === 'gameover') {
     if (input.restart) {
+      resetMpState(game);
       startRun(game);
     }
     return;
+  }
+}
+
+function resetMpState(game) {
+  if (game.mode === 'mp') {
+    if (game.session && !game.session.closed) {
+      try { game.session.close(); } catch {}
+    }
+    game.mode = 'solo';
+    game.session = null;
+    game.isHost = true;
+    game.remote = null;
+    game.remoteYeti = null;
+    game.spectating = false;
+    game.peerLeft = false;
+    game.lastSentT = 0;
+    game.seq = 0;
   }
 }
 
@@ -195,6 +213,8 @@ export function forceEndRun(game) {
 }
 
 function endRun(game) {
+  if (game.spectating) return;
+  if (game.state === 'gameover') return;
   // Multiplayer: if the peer is still alive, become a spectator instead of
   // ending the run. We notify the peer of our death and stop sending state.
   if (game.mode === 'mp' && game.session && game.remote && game.remote.alive && !game.peerLeft) {
