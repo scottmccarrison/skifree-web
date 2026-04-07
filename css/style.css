@@ -195,3 +195,14 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+#changelog-body {
+  max-height: 50vh;
+  overflow-y: auto;
+  font: 13px -apple-system, system-ui, sans-serif;
+  color: var(--ink);
+}
+.cl-version { margin-bottom: 10px; }
+.cl-ver { font-weight: bold; margin-bottom: 4px; }
+#changelog-body ul { margin: 0 0 0 18px; padding: 0; }
+#changelog-body li { margin: 2px 0; }

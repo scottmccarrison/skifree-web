@@ -3,6 +3,7 @@ import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
+import { CHANGELOG } from './changelog.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -135,11 +136,32 @@ function handleHit(r) {
   }
 }
 
-// Changelog modal handle (filled in by commit 8).
-function openChangelog() {
-  const m = document.getElementById('changelog-modal');
-  if (m) m.classList.remove('hidden');
+// Changelog modal: populate body once, wire close handlers.
+const clModal = document.getElementById('changelog-modal');
+const clBody = document.getElementById('changelog-body');
+const clClose = document.getElementById('changelog-close');
+
+function renderChangelog() {
+  if (!clBody) return;
+  const html = CHANGELOG.map(v => {
+    const items = v.items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
+    return `<div class="cl-version"><div class="cl-ver">${escapeHtml(v.version)}</div><ul>${items}</ul></div>`;
+  }).join('');
+  clBody.innerHTML = html;
 }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+renderChangelog();
+
+function openChangelog() {
+  if (clModal) clModal.classList.remove('hidden');
+}
+function closeChangelog() {
+  if (clModal) clModal.classList.add('hidden');
+}
+if (clClose) clClose.addEventListener('click', closeChangelog);
+if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal) closeChangelog(); });
 
 let last = performance.now();
 function frame(now) {

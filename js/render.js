@@ -148,6 +148,7 @@ export function render(ctx, viewport, game) {
       title: 'GAME OVER',
       hint: game.hint,
       lines: [`${Math.floor(score)} m`, '', game.controlHint],
+      gift: true,
     });
   }
 }
@@ -179,7 +180,7 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend } = panel;
+  const { title, hint, lines, legend, gift } = panel;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
   const legendRows = legend ? Math.ceil(LEGEND.length / 2) : 0;
@@ -345,4 +346,40 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     }
     ctx.textAlign = 'center';
   }
+
+  // Gift icon at the bottom of the panel: opens the changelog popup.
+  if (gift) {
+    const gx = cx;
+    const gy = cy + h/2 - 18;
+    drawGiftIcon(ctx, gx, gy);
+    hitRegions.push({
+      x: gx - 14, y: gy - 14, w: 28, h: 28,
+      action: 'openChangelog', data: null,
+    });
+  }
+}
+
+function drawGiftIcon(ctx, x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#cc1f1f';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.2;
+  ctx.fillRect(-10, -6, 20, 14);
+  ctx.strokeRect(-10, -6, 20, 14);
+  ctx.fillStyle = '#ffd400';
+  ctx.fillRect(-2, -6, 4, 14);
+  ctx.fillRect(-10, -2, 20, 3);
+  ctx.beginPath();
+  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
