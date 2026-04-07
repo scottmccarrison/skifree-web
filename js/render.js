@@ -206,7 +206,7 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
         topEverHeader = board.topEver;
       }
     } else if (tab === 'you') {
-      const pbName = (getStoredName().trim() || 'anon').toLowerCase();
+      const pbName = getStoredName().trim() || 'anon';
       rows = (game.personalBests || []).map(pb => ({
         name: pbName,
         score: pb.score,
