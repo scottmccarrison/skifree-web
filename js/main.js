@@ -2,7 +2,6 @@ import { initInput, input } from './input.js';
 import { createGame, updateGame, loadLeaderboard, forceEndRun } from './game.js';
 import { render } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
-import { drawPlayer } from './sprites.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -39,10 +38,13 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 initInput();
 const game = createGame();
 
-// Name input wiring.
+// Name input wiring (initials, uppercased).
 const nameInput = document.getElementById('name-input');
-nameInput.value = getStoredName();
-nameInput.addEventListener('input', () => setStoredName(nameInput.value));
+nameInput.value = getStoredName().toUpperCase();
+nameInput.addEventListener('input', () => {
+  nameInput.value = nameInput.value.toUpperCase();
+  setStoredName(nameInput.value);
+});
 // Stop key events on the name input from steering the skier.
 nameInput.addEventListener('keydown', (e) => e.stopPropagation());
 
@@ -102,19 +104,10 @@ fbSend.addEventListener('click', async () => {
   }
 });
 
-// End button - triggers game over so the leaderboard shows.
-document.getElementById('end-btn').addEventListener('click', () => {
+// SKI FREE title button - ends the run and shows the leaderboard.
+document.getElementById('title-button').addEventListener('click', () => {
   forceEndRun(game);
 });
-
-// Draw the crashed-skier icon into the end button.
-const iconCanvas = document.getElementById('end-icon');
-const iconCtx = iconCanvas.getContext('2d');
-iconCtx.save();
-iconCtx.translate(iconCanvas.width / 2, iconCanvas.height / 2 + 2);
-iconCtx.scale(0.7, 0.7);
-drawPlayer(iconCtx, 'crashed');
-iconCtx.restore();
 
 let last = performance.now();
 function frame(now) {

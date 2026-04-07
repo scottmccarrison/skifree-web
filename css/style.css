@@ -46,18 +46,26 @@ html, body {
   background: transparent;
 }
 
-#name-input {
+#top-right {
   position: fixed;
   z-index: 10;
   top: 12px;
   right: 12px;
-  width: 140px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#name-input {
+  width: 80px;
   padding: 6px 10px;
   border: 2px solid rgba(26, 26, 26, 0.45);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.75);
   color: var(--ink);
   font: 14px -apple-system, system-ui, sans-serif;
+  text-align: center;
+  text-transform: uppercase;
   outline: none;
   -webkit-user-select: text;
   user-select: text;
@@ -68,50 +76,44 @@ html, body {
   background: #fff;
 }
 
-#corner-buttons {
-  position: fixed;
-  z-index: 10;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-#corner-buttons button {
+#help-btn {
+  width: 32px;
+  height: 32px;
+  font: bold 18px -apple-system, system-ui, sans-serif;
   border: 2px solid rgba(26, 26, 26, 0.45);
   background: rgba(255, 255, 255, 0.75);
   color: var(--ink);
   border-radius: 8px;
   padding: 0;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   touch-action: manipulation;
 }
 
-#help-btn {
-  width: 32px;
-  height: 32px;
-  font: bold 18px -apple-system, system-ui, sans-serif;
-}
-
-#end-btn {
-  width: 38px;
-  height: 38px;
-}
-
-#corner-buttons button:hover {
+#help-btn:hover {
   background: #fff;
   border-color: rgba(26, 26, 26, 0.9);
 }
 
-#end-icon {
-  width: 30px;
-  height: 30px;
-  pointer-events: none;
+#title-button {
+  position: fixed;
+  z-index: 10;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: bold 18px -apple-system, system-ui, sans-serif;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  border: 2px solid rgba(26, 26, 26, 0.45);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#title-button:hover {
+  background: #fff;
+  border-color: rgba(26, 26, 26, 0.9);
 }
 
 #feedback-modal {
