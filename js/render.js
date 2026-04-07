@@ -21,7 +21,9 @@ export function render(ctx, viewport, game) {
   const inverted = stage >= 5;
   let bg;
   if (inverted) {
-    bg = '#000000';
+    // White here - the difference-with-white pass below flips it (and the
+    // sprites) to black-with-inverted-colors.
+    bg = '#ffffff';
   } else {
     // 244 -> ~120 across 5 steps.
     const v = Math.max(120, 244 - stage * 25);
