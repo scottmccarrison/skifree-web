@@ -128,6 +128,10 @@ function startRun(game) {
   game.state = 'playing';
 }
 
+export function forceEndRun(game) {
+  if (game.state === 'playing') endRun(game);
+}
+
 function endRun(game) {
   game.state = 'gameover';
   game.hint = pickHint();

@@ -1,7 +1,8 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun } from './game.js';
 import { render } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
+import { drawPlayer } from './sprites.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -46,6 +47,33 @@ nameInput.addEventListener('input', () => setStoredName(nameInput.value));
 nameInput.addEventListener('keydown', (e) => e.stopPropagation());
 
 loadLeaderboard(game);
+
+// Help button - opens a prefilled GitHub issue.
+document.getElementById('help-btn').addEventListener('click', () => {
+  const url = 'https://github.com/scottmccarrison/skifree-web/issues/new'
+    + '?title=' + encodeURIComponent('feedback: ')
+    + '&body=' + encodeURIComponent(
+        'What happened or what would you like to change?\n\n\n'
+        + '---\n'
+        + `device: ${navigator.userAgent}\n`
+        + `viewport: ${window.innerWidth}x${window.innerHeight}\n`
+      );
+  window.open(url, '_blank', 'noopener');
+});
+
+// End button - triggers game over so the leaderboard shows.
+document.getElementById('end-btn').addEventListener('click', () => {
+  forceEndRun(game);
+});
+
+// Draw the crashed-skier icon into the end button.
+const iconCanvas = document.getElementById('end-icon');
+const iconCtx = iconCanvas.getContext('2d');
+iconCtx.save();
+iconCtx.translate(iconCanvas.width / 2, iconCanvas.height / 2 + 2);
+iconCtx.scale(0.7, 0.7);
+drawPlayer(iconCtx, 'crashed');
+iconCtx.restore();
 
 let last = performance.now();
 function frame(now) {
