@@ -39,7 +39,7 @@ document.addEventListener('touchend', (e) => {
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
 initInput();
-const game = createGame();
+let game = createGame();
 
 // Name input wiring (initials, uppercased).
 const nameInput = document.getElementById('name-input');
@@ -312,6 +312,83 @@ document.getElementById('mp-ready').addEventListener('click', () => {
 });
 document.getElementById('mp-cancel').addEventListener('click', closeMpModal);
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
+
+// Bridge from the lobby (WS3) into actual gameplay (WS4). Replaces the
+// current game object with a fresh seeded one, attaches the live session,
+// and wires gameplay-specific listeners onto it.
+window.startMultiplayerGame = function(seed, session) {
+  game = createGame(seed >>> 0);
+  game.mode = 'mp';
+  game.session = session;
+  game.isHost = !!session.isHost;
+  game.remote = {
+    id: session.peer ? session.peer.id : null,
+    name: session.peer ? session.peer.name : 'P2',
+    x: 0, y: 0,
+    state: 'straight',
+    score: 0,
+    alive: true,
+    lastT: 0, prevX: 0, prevY: 0, prevT: 0,
+    lastSeq: -1,
+  };
+  game.remoteYeti = { active: false, x: 0, y: 0 };
+  // Drop directly into a run.
+  input.restart = true;
+  setTimeout(() => { input.restart = false; }, 80);
+
+  session.on('state', e => {
+    if (!game.remote) return;
+    if (typeof e.seq === 'number' && e.seq < game.remote.lastSeq) return;
+    if (typeof e.seq === 'number') game.remote.lastSeq = e.seq;
+    game.remote.prevX = game.remote.x;
+    game.remote.prevY = game.remote.y;
+    game.remote.prevT = game.remote.lastT || (performance.now() / 1000);
+    game.remote.x = e.x;
+    game.remote.y = e.y;
+    game.remote.state = e.state;
+    game.remote.score = e.score || 0;
+    game.remote.lastT = performance.now() / 1000;
+    if ((!game.remote.name || game.remote.name === 'P2') && session.peer) {
+      game.remote.name = session.peer.name;
+    }
+    // Non-host: yeti rides along on the host's broadcast.
+    if (!game.isHost && e.yeti) {
+      game.remoteYeti.active = !!e.yeti.active;
+      game.remoteYeti.x = e.yeti.x;
+      game.remoteYeti.y = e.yeti.y;
+      game.yeti.active = game.remoteYeti.active;
+      game.yeti.x = game.remoteYeti.x;
+      game.yeti.y = game.remoteYeti.y;
+    }
+  });
+  session.on('died', () => {
+    if (!game.remote) return;
+    game.remote.alive = false;
+    // If we were spectating waiting for the peer to die, transition to gameover.
+    if (game.spectating && game.state === 'playing') {
+      game.state = 'gameover';
+      game.hint = pickHintFallback();
+    }
+  });
+  session.on('peerLeft', e => {
+    game.peerLeft = true;
+    // If we are the joiner, the peer that just left was the host. Spec: hard
+    // reset to title and reopen the lobby modal.
+    if (!game.isHost) {
+      try { session.close(); } catch {}
+      game = createGame();
+      game.state = 'title';
+      if (typeof openMpModal === 'function') openMpModal();
+      return;
+    }
+    // Host whose joiner left: keep playing solo-ish, but leaderboard stays
+    // suppressed for the rest of the run (game.mode is still 'mp').
+  });
+};
+
+// Tiny shim so the inline 'died' handler above can refresh the gameover hint
+// without exporting pickHint from game.js.
+function pickHintFallback() { return game.hint || ''; }
 
 let last = performance.now();
 function frame(now) {

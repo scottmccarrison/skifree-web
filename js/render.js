@@ -26,6 +26,21 @@ const SPRITE_FNS = {
 // can map clicks to UI actions. Each entry: {x, y, w, h, action, data}.
 export const hitRegions = [];
 
+// Lerp/extrapolate a remote player's position based on the last two snapshots.
+// Caps t at 1.0 so we don't fly past the latest known point.
+function lerpRemote(remote) {
+  if (!remote.prevT || !remote.lastT || remote.lastT === remote.prevT) {
+    return { x: remote.x, y: remote.y };
+  }
+  const now = performance.now() / 1000;
+  const span = remote.lastT - remote.prevT;
+  const t = Math.min(1, Math.max(0, (now - remote.lastT) / span));
+  return {
+    x: remote.prevX + (remote.x - remote.prevX) * (1 + t),
+    y: remote.prevY + (remote.y - remote.prevY) * (1 + t),
+  };
+}
+
 export function render(ctx, viewport, game) {
   hitRegions.length = 0;
   const { player, world, yeti, state, score, highScore, deathCount } = game;
@@ -76,8 +91,12 @@ export function render(ctx, viewport, game) {
   }
 
   // Camera: player drawn at ~1/3 from top, x centered.
-  const camX = player.x - viewport.w / 2;
-  const camY = player.y - viewport.h / 3;
+  // In MP spectator mode, follow the surviving remote peer instead.
+  const cameraTarget = (game.spectating && game.remote)
+    ? lerpRemote(game.remote)
+    : player;
+  const camX = cameraTarget.x - viewport.w / 2;
+  const camY = cameraTarget.y - viewport.h / 3;
 
   // Draw obstacles in view.
   for (const o of world.obstacles) {
@@ -118,6 +137,16 @@ export function render(ctx, viewport, game) {
   drawPlayer(ctx, player.state);
   ctx.restore();
 
+  // Remote skier (multiplayer): translucent overlay at lerped position.
+  if (game.mode === 'mp' && game.remote) {
+    const r = lerpRemote(game.remote);
+    ctx.save();
+    ctx.globalAlpha = game.remote.alive ? 0.55 : 0.25;
+    ctx.translate(r.x - camX, r.y - camY);
+    drawPlayer(ctx, game.remote.state || 'straight');
+    ctx.restore();
+  }
+
   // Night mode: invert everything drawn so far via 'difference' with white.
   if (inverted) {
     ctx.save();
@@ -135,6 +164,12 @@ export function render(ctx, viewport, game) {
   ctx.font = '12px -apple-system, system-ui, sans-serif';
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
   ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
+  if (game.mode === 'mp' && game.remote) {
+    const pname = (game.remote.name || 'P2').slice(0, 14);
+    const pscore = Math.floor(game.remote.score || 0);
+    const aliveTag = game.remote.alive ? '' : ' (out)';
+    ctx.fillText(`P2: ${pname} ${pscore} m${aliveTag}`, 16, 78);
+  }
 
   // State overlays.
   if (state === 'title') {
