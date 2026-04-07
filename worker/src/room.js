@@ -26,7 +26,6 @@ export class Room {
     this.seed = null;
     this.hostId = null;
     this.nextId = 1;
-    this.started = false;
   }
 
   async fetch(request) {
@@ -67,14 +66,9 @@ export class Room {
       return new Response('room full', { status: 409 });
     }
 
-    // Lazy-restore started flag from storage
-    if (this.started === false) {
-      const persistedStarted = await this.state.storage.get('started');
-      if (persistedStarted) this.started = true;
-    }
-    if (this.started) {
-      return new Response('room in progress', { status: 409 });
-    }
+    // Mid-run joins allowed: a brand-new joiner sits at (0,0) safely until
+    // the next rematch. pickSlowestAlive on each client skips remotes whose
+    // lastT === 0, so the new player won't yank the yeti to origin.
 
     // Compute lowest unused color from existing sockets BEFORE accepting new one
     const usedColors = new Set();
@@ -155,8 +149,6 @@ export class Room {
           const newSeed = crypto.getRandomValues(new Uint32Array(1))[0];
           this.seed = newSeed;
           await this.state.storage.put('seed', newSeed);
-          this.started = true;
-          await this.state.storage.put('started', true);
           await this.state.storage.deleteAlarm();
           this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
         }
