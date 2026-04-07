@@ -2,6 +2,7 @@ import { initInput, input } from './input.js';
 import { createGame, updateGame, loadLeaderboard, forceEndRun } from './game.js';
 import { render } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
+import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -91,7 +92,7 @@ fbSend.addEventListener('click', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         message,
-        meta: `device: ${navigator.userAgent}\nviewport: ${window.innerWidth}x${window.innerHeight}`,
+        meta: buildDiagnosticsMeta(game),
       }),
     });
     if (!r.ok) throw new Error('http ' + r.status);

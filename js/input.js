@@ -1,4 +1,5 @@
 // Input: keyboard + touch zones (left/right halves of the screen).
+import { logInput } from './diagnostics.js';
 
 export const input = {
   left: false,
@@ -21,9 +22,9 @@ export function initInput() {
   // Keyboard.
   window.addEventListener('keydown', (e) => {
     switch (e.key) {
-      case 'ArrowLeft': case 'a': case 'A': input.left = true; break;
-      case 'ArrowRight': case 'd': case 'D': input.right = true; break;
-      case 'ArrowDown': case 's': case 'S': input.down = true; break;
+      case 'ArrowLeft': case 'a': case 'A': if (!input.left) logInput('L+'); input.left = true; break;
+      case 'ArrowRight': case 'd': case 'D': if (!input.right) logInput('R+'); input.right = true; break;
+      case 'ArrowDown': case 's': case 'S': if (!input.down) logInput('D+'); input.down = true; break;
       case ' ': case 'Enter': input.restart = true; break;
       default: return;
     }
@@ -33,9 +34,9 @@ export function initInput() {
 
   window.addEventListener('keyup', (e) => {
     switch (e.key) {
-      case 'ArrowLeft': case 'a': case 'A': input.left = false; break;
-      case 'ArrowRight': case 'd': case 'D': input.right = false; break;
-      case 'ArrowDown': case 's': case 'S': input.down = false; break;
+      case 'ArrowLeft': case 'a': case 'A': if (input.left) logInput('L-'); input.left = false; break;
+      case 'ArrowRight': case 'd': case 'D': if (input.right) logInput('R-'); input.right = false; break;
+      case 'ArrowDown': case 's': case 'S': if (input.down) logInput('D-'); input.down = false; break;
       case ' ': case 'Enter': input.restart = false; break;
     }
   });

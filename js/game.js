@@ -2,6 +2,7 @@ import { createPlayer, updatePlayer, crashPlayer, launchJump, isAirborne } from 
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti } from './yeti.js';
 import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
+import { captureCrashSnapshot } from './diagnostics.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
 
@@ -91,6 +92,7 @@ export function updateGame(game, input, viewport, dt) {
       if (hit.type.kind === 'jump') {
         launchJump(game.player);
       } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0) {
+        captureCrashSnapshot(game);
         crashPlayer(game.player);
         endRun(game);
         return;
