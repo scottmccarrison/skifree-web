@@ -6,18 +6,33 @@ import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
 const HIGH_SCORE_KEY = 'skifree.highScore';
 
 const HINTS = [
-  'jump over logs for a speed boost',
-  'jumping makes you invincible mid-air',
-  'sharp turns slow you down - the yeti loves that',
-  'the yeti shows up around 50 seconds in',
-  'going straight is your fastest steady pace',
-  'moguls are bumpy but harmless',
-  'every 1000m the snow gets a little darker',
-  'past 5000m the world goes dark - good luck',
-  'tap or click to start, space to restart',
-  'on mobile, hold the arrows to keep turning',
-  'jumps can save you from a tight tree cluster',
-  'the yeti always finds you eventually',
+  // What to avoid
+  'trees, rocks, and stumps end the run instantly',
+  'moguls are just bumps - ski right over them',
+  'tight tree clusters are a trap, look for gaps early',
+
+  // Yeti
+  'a yeti starts hunting you around 50 seconds in',
+  'the yeti is faster when you turn - stay straight to escape',
+  'no one outruns the yeti forever, only delays it',
+
+  // Speed
+  'hit a log to launch into the air with a speed burst',
+  'going straight is your top steady speed',
+  'mid-air you are invincible - jump through danger',
+
+  // Controls
+  'release left and right to drift back to straight',
+  'on mobile, tap the left or right half of the screen',
+  'hold a side to keep turning, let go to recover',
+
+  // Progression
+  'every 1000m the snow grows a little darker',
+  'past 5000m the whole world flips - good luck out there',
+
+  // Meta
+  'if the screen zooms by accident, just reload',
+  'your name in the corner is what shows on the leaderboard',
 ];
 
 function pickHint() {
