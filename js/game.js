@@ -53,7 +53,7 @@ export function updateGame(game, input, viewport, dt) {
   // Refresh control hint based on detected mode.
   game.controlHint = input.mode === 'touch'
     ? 'tap ◀ ▼ ▶ to ski - tap to start'
-    : 'arrows to steer, down to dive - space to start';
+    : 'left/right to steer - space to start';
 
   if (game.state === 'title') {
     if (input.restart || input.left || input.right || input.down) {
