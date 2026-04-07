@@ -121,16 +121,10 @@ export function render(ctx, viewport, game) {
     drawSnowflakes(ctx, viewport, game.elapsed || 0, flakeCount);
   }
 
-  // Camera: player drawn at ~1/3 from top, x centered.
-  // In MP spectator mode, follow the surviving remote peer instead.
-  const cameraTarget = (game.spectating)
-    ? (function(){
-        if (!game.remotes || game.remotes.size === 0) return player;
-        for (const r of game.remotes.values()) { if (r.alive) return lerpRemote(r); }
-        for (const r of game.remotes.values()) return lerpRemote(r);
-        return player;
-      })()
-    : player;
+  // Camera: read the SAME target updateGame used for world generation.
+  // game.cameraTarget is set every frame in updateGame so render and
+  // world generation can never drift apart.
+  const cameraTarget = game.cameraTarget || player;
   const camX = cameraTarget.x - viewport.w / 2;
   const camY = cameraTarget.y - viewport.h / 3;
 

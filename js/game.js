@@ -113,8 +113,10 @@ export function updateGame(game, input, viewport, dt) {
     if (!game.spectating) {
       updatePlayer(game.player, input, dt, speedMult);
     }
-    const cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
-    updateWorld(game.world, cameraTarget, viewport, difficulty);
+    // Single source of truth for the camera/world target. render.js reads
+    // this so it never disagrees with what world generation is following.
+    game.cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
+    updateWorld(game.world, game.cameraTarget, viewport, difficulty);
 
     const hit = checkCollisions(game.world, game.player);
     if (hit) {
