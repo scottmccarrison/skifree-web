@@ -1,5 +1,5 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle } from './game.js';
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
@@ -139,6 +139,12 @@ document.getElementById('title-button').addEventListener('click', () => {
 // UI hit-region dispatch. Uses pointerup (not click) because iOS Safari
 // doesn't synthesize click events on the canvas reliably for touch input.
 window.addEventListener('pointerup', (e) => {
+  if (game.state === 'playing' && game.spectating) {
+    if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #mp-modal, #changelog-modal, #title-button')) return;
+    advanceSpectateCycle(game);
+    e.stopPropagation();
+    return;
+  }
   if (game.state === 'playing') return;
   // Don't hijack interactions with real DOM controls.
   if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #mp-modal, #changelog-modal, #title-button')) return;
