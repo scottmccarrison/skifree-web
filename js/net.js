@@ -24,8 +24,16 @@ export function createSession() {
   let seed = null;
   let id = null;
   let isHost = false;
+  let color = 0;
   let peer = null;          // {id, name} of the other player when present
+  let roster = [];          // [{id, name, color, isHost, ready}]
   let closed = false;
+
+  function syncPeer() {
+    // Backwards-compat: first non-self entry as a synthesized "peer".
+    const other = roster.find(p => p.id !== id);
+    peer = other ? { id: other.id, name: other.name } : null;
+  }
 
   function emit(event, payload) {
     (listeners[event] || []).forEach(fn => { try { fn(payload); } catch (e) { console.error(e); } });
@@ -62,18 +70,34 @@ export function createSession() {
           id = data.id;
           isHost = !!data.isHost;
           seed = data.seed;
-          if (data.peers && data.peers.length > 0) peer = data.peers[0];
+          if (typeof data.color === 'number') color = data.color;
+          roster = Array.isArray(data.roster) ? data.roster.slice() : [];
+          syncPeer();
           emit('welcome', data);
           break;
         case 'peerJoined':
-          peer = { id: data.id, name: data.name };
+          if (typeof data.id === 'number' && !roster.some(p => p.id === data.id)) {
+            roster.push({
+              id: data.id,
+              name: data.name || `anon${data.id}`,
+              color: typeof data.color === 'number' ? data.color : 0,
+              isHost: false,
+              ready: false,
+            });
+          }
+          syncPeer();
           emit('peerJoined', data);
           break;
         case 'peerReady':
+          if (typeof data.id === 'number') {
+            const r = roster.find(p => p.id === data.id);
+            if (r) r.ready = true;
+          }
           emit('peerReady', data);
           break;
         case 'start':
           if (typeof data.seed === 'number') seed = data.seed;
+          for (const r of roster) r.ready = false;
           emit('start', data);
           break;
         case 'state':
@@ -83,8 +107,14 @@ export function createSession() {
           emit('died', data);
           break;
         case 'peerLeft':
-          peer = null;
+          if (typeof data.id === 'number') {
+            roster = roster.filter(p => p.id !== data.id);
+          }
+          syncPeer();
           emit('peerLeft', data);
+          break;
+        case 'kicked':
+          emit('kicked', data);
           break;
       }
     });
@@ -116,6 +146,11 @@ export function createSession() {
     sendDied() {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'died' }));
     },
+    sendKick(targetId) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'kick', targetId }));
+      }
+    },
     close() {
       if (ws) { try { ws.close(); } catch {} }
     },
@@ -123,6 +158,8 @@ export function createSession() {
     get seed() { return seed; },
     get id() { return id; },
     get isHost() { return isHost; },
+    get color() { return color; },
+    get roster() { return roster.slice(); },
     get peer() { return peer; },
     get closed() { return closed; },
   };

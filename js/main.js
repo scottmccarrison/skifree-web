@@ -352,16 +352,20 @@ window.startMultiplayerGame = function(seed, session) {
   game.mode = 'mp';
   game.session = session;
   game.isHost = !!session.isHost;
-  game.remote = {
-    id: session.peer ? session.peer.id : null,
-    name: session.peer ? session.peer.name : 'P2',
-    x: 0, y: 0,
-    state: 'straight',
-    score: 0,
-    alive: true,
-    lastT: 0, prevX: 0, prevY: 0, prevT: 0,
-    lastSeq: -1,
-  };
+  game.remotes = new Map();
+  for (const p of (session.roster || [])) {
+    if (p.id === session.id) continue;
+    game.remotes.set(p.id, {
+      id: p.id,
+      name: p.name || `anon${p.id}`,
+      color: p.color || 0,
+      x: 0, y: 0,
+      state: 'straight',
+      score: 0,
+      alive: true,
+      prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
+    });
+  }
   game.remoteYeti = { active: false, x: 0, y: 0 };
   // Drop directly into a run.
   input.restart = true;
@@ -372,22 +376,30 @@ window.startMultiplayerGame = function(seed, session) {
   session.__gameplayWired = true;
 
   session.on('state', e => {
-    if (!game.remote) return;
-    if (typeof e.seq === 'number' && e.seq < game.remote.lastSeq) return;
-    if (typeof e.seq === 'number') game.remote.lastSeq = e.seq;
-    game.remote.prevX = game.remote.x;
-    game.remote.prevY = game.remote.y;
-    game.remote.prevT = game.remote.lastT || (performance.now() / 1000);
-    game.remote.x = e.x;
-    game.remote.y = e.y;
-    game.remote.state = e.state;
-    game.remote.score = e.score || 0;
-    game.remote.lastT = performance.now() / 1000;
-    if ((!game.remote.name || game.remote.name === 'P2') && session.peer) {
-      game.remote.name = session.peer.name;
+    if (typeof e.id !== 'number') return;
+    let r = game.remotes.get(e.id);
+    if (!r) {
+      const meta = (session.roster || []).find(p => p.id === e.id) || {};
+      r = {
+        id: e.id, name: meta.name || `anon${e.id}`, color: meta.color || 0,
+        x: 0, y: 0, state: 'straight', score: 0, alive: true,
+        prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
+      };
+      game.remotes.set(e.id, r);
     }
+    if (typeof e.seq === 'number' && e.seq < r.lastSeq) return;
+    if (typeof e.seq === 'number') r.lastSeq = e.seq;
+    r.prevX = r.x;
+    r.prevY = r.y;
+    r.prevT = r.lastT || (performance.now() / 1000);
+    r.x = e.x;
+    r.y = e.y;
+    if (e.state) r.state = e.state;
+    if (typeof e.score === 'number') r.score = e.score;
+    r.lastT = performance.now() / 1000;
     // Non-host: yeti rides along on the host's broadcast.
     if (!game.isHost && e.yeti) {
+      if (!game.remoteYeti) game.remoteYeti = { active: false, x: 0, y: 0 };
       game.remoteYeti.active = !!e.yeti.active;
       game.remoteYeti.x = e.yeti.x;
       game.remoteYeti.y = e.yeti.y;
@@ -396,33 +408,56 @@ window.startMultiplayerGame = function(seed, session) {
       game.yeti.y = game.remoteYeti.y;
     }
   });
-  session.on('died', () => {
-    if (!game.remote) return;
-    game.remote.alive = false;
-    // If we were spectating waiting for the peer to die, transition to gameover.
-    if (game.spectating && game.state === 'playing') {
+  session.on('died', e => {
+    if (typeof e.id !== 'number') return;
+    const r = game.remotes.get(e.id);
+    if (r) r.alive = false;
+    let anyAlive = false;
+    for (const x of game.remotes.values()) { if (x.alive) { anyAlive = true; break; } }
+    const localDead = game.spectating || game.player.state === 'crashed';
+    if (!anyAlive && localDead && game.state === 'playing') {
       game.state = 'gameover';
       game.hint = pickHintFallback();
     }
   });
-  session.on('peerLeft', e => {
-    game.peerLeft = true;
-    // If we were spectating, the peer we were watching is gone - end our run.
-    if (game.spectating) {
-      if (game.state === 'playing') forceGameOver(game);
-      return;
+  session.on('peerJoined', e => {
+    if (typeof e.id !== 'number') return;
+    if (!game.remotes.has(e.id)) {
+      game.remotes.set(e.id, {
+        id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
+        x: 0, y: 0, state: 'straight', score: 0, alive: true,
+        prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
+      });
     }
-    // If we are the joiner, the peer that just left was the host. Spec: hard
-    // reset to title and reopen the lobby modal.
-    if (!game.isHost) {
+  });
+  session.on('peerLeft', e => {
+    if (e && typeof e.id === 'number') {
+      game.remotes.delete(e.id);
+    }
+    // Host disconnect = session ends for joiners.
+    if (e && e.wasHost) {
       try { session.close(); } catch {}
       game = createGame();
       game.state = 'title';
       if (typeof openMpModal === 'function') openMpModal();
       return;
     }
-    // Host whose joiner left: keep playing solo-ish, but leaderboard stays
-    // suppressed for the rest of the run (game.mode is still 'mp').
+    // If spectating and no remotes left alive, end the run.
+    if (game.spectating) {
+      let anyAlive = false;
+      for (const x of game.remotes.values()) { if (x.alive) { anyAlive = true; break; } }
+      if (!anyAlive && game.state === 'playing') {
+        game.state = 'gameover';
+        game.spectating = false;
+      }
+    }
+  });
+  session.on('kicked', () => {
+    try { session.close(); } catch {}
+    game = createGame();
+    game.state = 'title';
+    if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
+    if (typeof openMpModal === 'function') openMpModal();
   });
 };
 
