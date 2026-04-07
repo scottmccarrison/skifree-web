@@ -141,7 +141,14 @@ export function createSession() {
       attachSocket(roomCode);
     },
     sendReady() {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ready' }));
+      // Returns true if the message went out, false if the socket is not
+      // open. Caller uses this to avoid disabling the ready button on a
+      // silent send failure (otherwise the user is stuck unable to ready).
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ready' }));
+        return true;
+      }
+      return false;
     },
     sendState(payload) {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'state', ...payload }));
