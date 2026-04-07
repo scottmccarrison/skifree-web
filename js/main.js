@@ -24,6 +24,17 @@ window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
 resize();
 
+// iOS Safari ignores user-scalable=no. Block the double-tap zoom gesture by
+// preventing the second tap when it lands within 350ms of the first.
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 350) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+// Also block pinch-zoom gestures.
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 initInput();
 const game = createGame();
 
