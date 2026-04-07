@@ -1,6 +1,6 @@
 import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
-  drawPlayer, drawYeti,
+  drawPlayer, drawYeti, drawSquirrel,
 } from './sprites.js';
 import { getStoredName } from './leaderboard.js';
 import { colorForIndex } from './colors.js';
@@ -138,6 +138,20 @@ export function render(ctx, viewport, game) {
     ctx.translate(sx, sy);
     SPRITE_FNS[o.type.kind](ctx, score);
     ctx.restore();
+  }
+
+  // Critters (squirrels).
+  if (game.critters && game.critters.list) {
+    for (const c of game.critters.list) {
+      const sx = c.x - camX;
+      const sy = c.y - camY;
+      if (sx < -30 || sx > viewport.w + 30) continue;
+      if (sy < -30 || sy > viewport.h + 30) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      drawSquirrel(ctx, c.vx >= 0 ? 1 : -1);
+      ctx.restore();
+    }
   }
 
   // Yeti.

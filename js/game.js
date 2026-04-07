@@ -1,6 +1,7 @@
 import { createPlayer, updatePlayer, crashPlayer, launchJump, launchHop, isAirborne } from './player.js';
 import { createWorld, updateWorld, checkCollisions } from './world.js';
 import { createYeti, updateYeti, resetYeti, checkYetiCollision } from './yeti.js';
+import { createCritters, resetCritters, updateCritters, checkCritterCollision } from './critters.js';
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
 
@@ -49,6 +50,7 @@ export function createGame(seed) {
     player: createPlayer(),
     world: createWorld(gameSeed),
     yeti: createYeti(gameSeed),
+    critters: createCritters(),
     score: 0,
     startY: 0,
     elapsed: 0,
@@ -142,6 +144,16 @@ export function updateGame(game, input, viewport, dt) {
         endRun(game);
         return;
       }
+    }
+
+    // Critters: per-player local hazards. Update first so collision below
+    // sees their post-step positions, then check against the local player.
+    updateCritters(game.critters, game.player, viewport, dt, game.score, speedMult);
+    if (!game.spectating && checkCritterCollision(game.critters, game.player)) {
+      captureCrashSnapshot(game);
+      crashPlayer(game.player);
+      endRun(game);
+      return;
     }
 
     if (game.mode !== 'mp' || game.isHost) {
@@ -287,6 +299,7 @@ function startRun(game) {
   game.player = createPlayer();
   game.world = createWorld(game.seed);
   resetYeti(game.yeti);
+  resetCritters(game.critters);
   game.score = 0;
   game.startY = 0;
   game.elapsed = 0;
