@@ -7,7 +7,9 @@ const BASE_CHASE_SPEED = 200;     // straight player is 220 - going straight sti
 const FLYBY_INTERVAL_SEC = 10;
 const FLYBY_FAR_THRESHOLD = 350;  // threshold in world units - any gap larger than this can trigger a flyby
 
-export function createYeti() {
+import { hashChunk } from './rng.js';
+
+export function createYeti(seed) {
   return {
     active: false,
     x: 0,
@@ -16,6 +18,8 @@ export function createYeti() {
     height: 36,
     spawnTimer: 0,
     flybyTimer: 0,
+    seed: (seed === undefined ? Date.now() : seed) >>> 0,
+    flybyCounter: 0,
   };
 }
 
@@ -52,7 +56,8 @@ export function updateYeti(yeti, player, dt, difficulty = 1) {
   yeti.flybyTimer += dt;
   if (yeti.flybyTimer >= FLYBY_INTERVAL_SEC && dist > FLYBY_FAR_THRESHOLD) {
     yeti.flybyTimer = 0;
-    const side = Math.random() < 0.5 ? -1 : 1;
+    const side = (hashChunk(yeti.seed, yeti.flybyCounter, 0) & 1) ? -1 : 1;
+    yeti.flybyCounter++;
     yeti.x = player.x + side * 250;
     yeti.y = player.y - 300;
   }
@@ -69,4 +74,5 @@ export function resetYeti(yeti) {
   yeti.active = false;
   yeti.spawnTimer = 0;
   yeti.flybyTimer = 0;
+  yeti.flybyCounter = 0;
 }
