@@ -149,23 +149,7 @@ export class Room {
         meta.ready = true;
         ws.serializeAttachment(meta);
         this.broadcast({ type: 'peerReady', id: meta.id });
-        const all = this.peers();
-        if (all.length >= 2 && all.every(p => p.ready)) {
-          // Reset ready flags so a future rematch can fire 'start' again
-          for (const sock of this.state.getWebSockets()) {
-            const m = sock.deserializeAttachment() || {};
-            m.ready = false;
-            sock.serializeAttachment(m);
-          }
-          // Generate a NEW seed for this run (each rematch is a fresh hill)
-          const newSeed = crypto.getRandomValues(new Uint32Array(1))[0];
-          this.seed = newSeed;
-          await this.state.storage.put('seed', newSeed);
-          this.inProgress = true;
-          await this.state.storage.put('inProgress', true);
-          await this.state.storage.deleteAlarm();
-          this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
-        }
+        await this.maybeStart();
         break;
       }
       case 'kick': {
@@ -201,7 +185,31 @@ export class Room {
     this.broadcast({ type: 'peerLeft', id: meta.id, wasHost });
     if (this.state.getWebSockets().length === 0) {
       await this.state.storage.setAlarm(Date.now() + EMPTY_TTL_MS);
+      return;
     }
+    // A leaver may tip the room into "all remaining peers are ready" - the
+    // start handshake must still fire even though no one clicked anything.
+    await this.maybeStart();
+  }
+
+  // Shared start-check used by both `ready` and `webSocketClose`. Fires
+  // `start` to all peers when the room has >=2 clients and every one of them
+  // is in the ready state. Idempotent - resets ready flags before broadcast.
+  async maybeStart() {
+    const all = this.peers();
+    if (all.length < 2 || !all.every(p => p.ready)) return;
+    for (const sock of this.state.getWebSockets()) {
+      const m = sock.deserializeAttachment() || {};
+      m.ready = false;
+      sock.serializeAttachment(m);
+    }
+    const newSeed = crypto.getRandomValues(new Uint32Array(1))[0];
+    this.seed = newSeed;
+    await this.state.storage.put('seed', newSeed);
+    this.inProgress = true;
+    await this.state.storage.put('inProgress', true);
+    await this.state.storage.deleteAlarm();
+    this.broadcast({ type: 'start', countdownMs: 3000, seed: newSeed });
   }
 
   async webSocketError(ws, err) {

@@ -365,6 +365,19 @@ function setStartStatus(text) {
   if (game) game.rematchStatus = text;
 }
 
+// Recompute the "X/Y ready" status string from the current roster.
+// Used by peerReady and peerLeft so the displayed count never goes stale
+// when peers ready up or disconnect. Safe to call when not in a lobby
+// state - it just no-ops if there's nothing to count.
+function refreshReadyStatus() {
+  if (!mpSession) return;
+  const r = mpSession.roster;
+  if (!r || r.length === 0) return;
+  if (r.length >= 2 && r.every(p => p.ready)) return; // 'start' will replace this
+  const numReady = r.filter(p => p.ready).length;
+  setMpStatus(`${numReady}/${r.length} ready`);
+}
+
 async function startHost() {
   try {
     mpSession = createSession();
@@ -437,11 +450,7 @@ function wireMpSession() {
     // The visual checkmark in renderLobby IS the feedback - same in lobby
     // and in MP gameover (the modal is reused for both).
     renderLobby();
-    const allReady = mpSession.roster.length >= 2 && mpSession.roster.every(p => p.ready);
-    if (!allReady) {
-      const numReady = mpSession.roster.filter(p => p.ready).length;
-      setMpStatus(`${numReady}/${mpSession.roster.length} ready`);
-    }
+    refreshReadyStatus();
   });
   mpSession.on('start', e => {
     const ms = (e && typeof e.countdownMs === 'number') ? e.countdownMs : 3000;
@@ -475,6 +484,10 @@ function wireMpSession() {
     if (mpSession.roster.length < 2) {
       ready.disabled = true;
       setMpStatus('Waiting for players...');
+    } else {
+      // Recompute the "X/Y ready" string so the displayed denominator
+      // matches the new roster size after a peer disconnects.
+      refreshReadyStatus();
     }
   });
   mpSession.on('error', () => {
@@ -494,12 +507,18 @@ function wireMpSession() {
 document.getElementById('mp-host').addEventListener('click', startHost);
 document.getElementById('mp-join-go').addEventListener('click', commitJoin);
 document.getElementById('mp-ready').addEventListener('click', () => {
-  if (mpSession) {
-    mpSession.sendReady();
-    const numReady = (mpSession.roster.filter(p => p.ready).length) + 1;
-    setMpStatus(`${numReady}/${mpSession.roster.length} ready (you're in)`);
-    document.getElementById('mp-ready').disabled = true;
+  if (!mpSession) return;
+  // Only commit local UI state if the message actually went out. A silent
+  // send failure (closed/connecting socket) used to leave the button
+  // permanently disabled with no recourse - now we surface the error.
+  const sent = mpSession.sendReady();
+  if (!sent) {
+    setMpStatus('Connection lost - try rejoining');
+    return;
   }
+  const numReady = (mpSession.roster.filter(p => p.ready).length) + 1;
+  setMpStatus(`${numReady}/${mpSession.roster.length} ready (you're in)`);
+  document.getElementById('mp-ready').disabled = true;
 });
 document.getElementById('mp-cancel').addEventListener('click', () => {
   // If we're cancelling out of MP gameover (rematch screen), fully drop
@@ -515,6 +534,25 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
   }
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
+
+// Mobile Safari aggressively kills WebSockets when the tab backgrounds. On
+// return, if we still think we have an MP session but the socket is dead,
+// transparently rejoin the same room. The user comes back as a spectator
+// (server already saw them leave), which is much better than losing the
+// session entirely.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!mpSession) return;
+  if (!mpSession.closed) return;
+  const code = mpSession.code;
+  if (!code) return;
+  // Recreate the session targeting the same room. wireMpSession's welcome
+  // handler will detect inProgress and drop straight into spectator mode.
+  mpSession = createSession();
+  wireMpSession();
+  setMpStatus('Reconnecting...');
+  mpSession.join(code);
+});
 
 // Bridge from the lobby (WS3) into actual gameplay (WS4). Replaces the
 // current game object with a fresh seeded one, attaches the live session,

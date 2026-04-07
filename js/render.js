@@ -126,12 +126,12 @@ export function render(ctx, viewport, game) {
     drawSnowflakes(ctx, viewport, game.elapsed || 0, flakeCount);
   }
 
-  // Camera: read the SAME target updateGame used for world generation.
-  // game.cameraTarget is set every frame in updateGame so render and
-  // world generation can never drift apart.
-  const cameraTarget = game.cameraTarget || player;
-  const camX = cameraTarget.x - viewport.w / 2;
-  const camY = cameraTarget.y - viewport.h / 3;
+  // Camera: prefer the smoothed cameraPos so spectator switches glide
+  // instead of teleporting. World generation still uses cameraTarget so
+  // chunks stay aligned even if the visual lags slightly.
+  const cameraSrc = game.cameraPos || game.cameraTarget || player;
+  const camX = cameraSrc.x - viewport.w / 2;
+  const camY = cameraSrc.y - viewport.h / 3;
 
   // Draw obstacles in view.
   for (const o of world.obstacles) {
