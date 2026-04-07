@@ -5,6 +5,25 @@ import { fetchLeaderboard, submitScore, getStoredName } from './leaderboard.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
 
+const HINTS = [
+  'jump over logs for a speed boost',
+  'jumping makes you invincible mid-air',
+  'sharp turns slow you down - the yeti loves that',
+  'the yeti shows up around 50 seconds in',
+  'going straight is your fastest steady pace',
+  'moguls are bumpy but harmless',
+  'every 1000m the snow gets a little darker',
+  'past 5000m the world goes dark - good luck',
+  'tap or click to start, space to restart',
+  'on mobile, hold the arrows to keep turning',
+  'jumps can save you from a tight tree cluster',
+  'the yeti always finds you eventually',
+];
+
+function pickHint() {
+  return HINTS[Math.floor(Math.random() * HINTS.length)];
+}
+
 export function createGame() {
   return {
     state: 'title', // 'title' | 'playing' | 'gameover'
@@ -16,6 +35,7 @@ export function createGame() {
     elapsed: 0,
     highScore: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
     controlHint: 'press any key or tap to start',
+    hint: pickHint(),
     leaderboard: null,        // array of {name, score, created_at} or null
     leaderboardLoading: false,
   };
@@ -95,6 +115,7 @@ function startRun(game) {
 
 function endRun(game) {
   game.state = 'gameover';
+  game.hint = pickHint();
   localStorage.setItem(HIGH_SCORE_KEY, String(Math.floor(game.highScore)));
 
   const finalScore = Math.floor(game.score);

@@ -94,12 +94,14 @@ export function render(ctx, viewport, game) {
   if (state === 'title') {
     drawCenteredPanel(ctx, viewport, {
       title: 'SKI FREE',
-      lines: ['avoid trees. outrun the yeti.', '', game.controlHint],
+      hint: game.hint,
+      lines: ['', game.controlHint],
       leaderboard: game.leaderboard,
     });
   } else if (state === 'gameover') {
     drawCenteredPanel(ctx, viewport, {
       title: 'GAME OVER',
+      hint: game.hint,
       lines: [`${Math.floor(score)} m`, '', game.controlHint],
       leaderboard: game.leaderboard,
     });
@@ -107,14 +109,15 @@ export function render(ctx, viewport, game) {
 }
 
 function drawCenteredPanel(ctx, viewport, panel) {
-  const { title, lines, leaderboard } = panel;
+  const { title, hint, lines, leaderboard } = panel;
   const lbRows = leaderboard ? Math.min(10, leaderboard.length) : 0;
   const lbHeight = leaderboard ? 28 + lbRows * 18 : 0;
+  const hintHeight = hint ? 28 : 0;
 
   const cx = viewport.w / 2;
   const cy = viewport.h / 2;
-  const w = Math.min(viewport.w - 40, 360);
-  const h = 90 + lines.length * 22 + lbHeight + 30;
+  const w = Math.min(viewport.w - 40, 380);
+  const h = 90 + hintHeight + lines.length * 22 + lbHeight + 30;
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.strokeStyle = '#1a1a1a';
@@ -132,6 +135,12 @@ function drawCenteredPanel(ctx, viewport, panel) {
   ctx.font = 'bold 28px -apple-system, system-ui, sans-serif';
   ctx.fillText(title, cx, y);
   y += 30;
+
+  if (hint) {
+    ctx.font = 'italic 13px -apple-system, system-ui, sans-serif';
+    ctx.fillText(`tip: ${hint}`, cx, y);
+    y += 24;
+  }
 
   ctx.font = '15px -apple-system, system-ui, sans-serif';
   for (const line of lines) {
