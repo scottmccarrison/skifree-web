@@ -111,13 +111,12 @@ document.getElementById('title-button').addEventListener('click', () => {
   forceEndRun(game);
 });
 
-// UI hit-region click dispatch. Attached to window so it fires even though
-// the touch-zone divs sit above the canvas. Only consumes clicks that land
-// inside a registered hit region; everything else falls through.
-window.addEventListener('click', (e) => {
+// UI hit-region dispatch. Uses pointerup (not click) because iOS Safari
+// doesn't synthesize click events on the canvas reliably for touch input.
+window.addEventListener('pointerup', (e) => {
   if (game.state === 'playing') return;
-  // Don't hijack clicks on real DOM controls (name input, help button, modals).
-  if (e.target.closest('#top-right, #feedback-modal, #changelog-modal, #title-button')) return;
+  // Don't hijack interactions with real DOM controls.
+  if (e.target && e.target.closest && e.target.closest('#top-right, #feedback-modal, #changelog-modal, #title-button')) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
