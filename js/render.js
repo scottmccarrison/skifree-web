@@ -265,9 +265,6 @@ export function render(ctx, viewport, game) {
     for (let i = 0; i < all.length; i++) {
       const p = all[i];
       const y = startY + i * rowH;
-      if (game._rosterRowPositions && p.id != null) {
-        game._rosterRowPositions.set(p.id, { x: startX, y, rowH });
-      }
       const swatchY = y + (rowH - swatchSize) / 2;
       ctx.fillStyle = colorForIndex(p.color);
       ctx.fillRect(startX, swatchY, swatchSize, swatchSize);
@@ -278,7 +275,18 @@ export function render(ctx, viewport, game) {
       const nm = p.name.length > 8 ? p.name.slice(0, 8) : p.name;
       let label = `${nm} ${p.score}`;
       if (!p.alive) label += ' x';
-      ctx.fillText(label, startX + swatchSize + 6, y + (rowH - fontSize) / 2);
+      const labelX = startX + swatchSize + 6;
+      ctx.fillText(label, labelX, y + (rowH - fontSize) / 2);
+      if (game._rosterRowPositions && p.id != null) {
+        const labelW = ctx.measureText(label).width;
+        game._rosterRowPositions.set(p.id, {
+          x: startX,
+          y,
+          rowH,
+          textRight: labelX + labelW,
+          fontSize,
+        });
+      }
     }
     ctx.restore();
     ctx.textBaseline = 'alphabetic';
@@ -411,16 +419,19 @@ function drawChatBubbles(ctx, viewport, game) {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Measure text
-    ctx.font = '13px -apple-system, system-ui, sans-serif';
+    // Measure text - match the bubble font to the roster font so the
+    // bubble doesn't dwarf the name it belongs to.
+    const fontSize = row.fontSize || 11;
+    ctx.font = `${fontSize}px -apple-system, system-ui, sans-serif`;
     const text = `${preset.emoji} ${preset.text}`;
     const textW = ctx.measureText(text).width;
-    const padX = 10, padY = 6;
+    const padX = 8, padY = 4;
     const W = textW + padX * 2;
-    const H = 13 + padY * 2;
+    const H = fontSize + padY * 2;
 
-    // Position: to the RIGHT of the row, vertically centered on the row
-    const bx = row.x + 130;
+    // Position: just to the right of the actual end of the roster label,
+    // vertically centered on the row.
+    const bx = (row.textRight != null ? row.textRight : row.x + 130) + 8;
     const by = row.y + (row.rowH / 2) - (H / 2);
 
     // Bubble background
