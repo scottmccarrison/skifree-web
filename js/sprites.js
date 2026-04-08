@@ -133,7 +133,9 @@ export function drawStump(ctx) {
 }
 
 // Player sprite. `state`: 'straight' | 'leftEasy' | 'leftHard' | 'rightEasy' | 'rightHard' | 'crashed'
-export function drawPlayer(ctx, state) {
+// `cosmetic`: optional resolved cosmetic object from cosmetics.js (or null).
+// Composition order: drawBehind accessory -> skis -> body+overlay -> head -> hat -> draw accessory.
+export function drawPlayer(ctx, state, cosmetic = null) {
   if (state === 'crashed') {
     drawCrashedPlayer(ctx);
     return;
@@ -146,19 +148,29 @@ export function drawPlayer(ctx, state) {
     rightHard: -0.7,
   }[state] ?? 0;
 
-  // Skis.
+  // Behind-the-body accessories (cape, wings) draw first so the body covers them.
+  if (cosmetic && cosmetic.type === 'accessory' && cosmetic.drawBehind) {
+    cosmetic.drawBehind(ctx);
+  }
+
+  // Skis. Cosmetic skis recolor the ski rectangles.
+  const skiColor = (cosmetic && cosmetic.type === 'skis' && cosmetic.skiColor) || '#222';
   ctx.save();
   ctx.rotate(skiAngle);
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = skiColor;
   ctx.fillRect(-9, -2, 6, 18);
   ctx.fillRect(3, -2, 6, 18);
   ctx.restore();
 
-  // Body.
-  ctx.fillStyle = '#d33';
+  // Body. Cosmetic jackets override the fill color and may paint a pattern overlay.
+  const bodyColor = (cosmetic && cosmetic.type === 'jacket' && cosmetic.bodyColor) || '#d33';
+  ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.ellipse(0, -8, 7, 9, 0, 0, Math.PI * 2);
   ctx.fill();
+  if (cosmetic && cosmetic.type === 'jacket' && cosmetic.drawOverlay) {
+    cosmetic.drawOverlay(ctx);
+  }
 
   // Head.
   ctx.fillStyle = '#f2c79b';
@@ -166,9 +178,18 @@ export function drawPlayer(ctx, state) {
   ctx.arc(0, -19, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Hat.
-  ctx.fillStyle = '#1144aa';
-  ctx.fillRect(-5, -24, 10, 4);
+  // Hat. Cosmetic hats replace the default blue rectangle entirely.
+  if (cosmetic && cosmetic.type === 'hat' && cosmetic.drawHat) {
+    cosmetic.drawHat(ctx);
+  } else {
+    ctx.fillStyle = '#1144aa';
+    ctx.fillRect(-5, -24, 10, 4);
+  }
+
+  // Top-of-stack accessories (sunglasses, headlamp, halo, etc).
+  if (cosmetic && cosmetic.type === 'accessory' && cosmetic.draw) {
+    cosmetic.draw(ctx);
+  }
 }
 
 function drawCrashedPlayer(ctx) {

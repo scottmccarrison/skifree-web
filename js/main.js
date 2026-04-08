@@ -6,6 +6,9 @@ import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 import { createSession } from './net.js';
 import { colorForIndex } from './colors.js';
+import { drawPlayer } from './sprites.js';
+import { COSMETICS, CATALOG_ORDER } from './cosmetics.js';
+import { equip, unequip, isUnlocked } from './profile.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -73,6 +76,8 @@ function openFeedback() {
     game.state = 'paused';
     feedbackPausedRun = true;
   }
+  // v0.4: count pauses for The Yetis Are Watching achievement.
+  if (game && game.run) game.run.pauses += 1;
   fbStatus.textContent = '';
   fbText.value = '';
   fbSend.disabled = false;
@@ -116,6 +121,72 @@ document.getElementById('help-btn').addEventListener('click', () => {
 fbCancel.addEventListener('click', closeFeedback);
 fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
 fbText.addEventListener('keydown', (e) => e.stopPropagation());
+
+// ---- v0.4: cosmetic wardrobe ----
+// Same pause-on-open contract as feedback (solo only). Different module-level
+// flag so opening one doesn't accidentally clear the other's pause state.
+let cosmeticPausedRun = false;
+function clearCosmeticPause() { cosmeticPausedRun = false; }
+
+const cosModal = document.getElementById('cosmetic-modal');
+const cosGrid = document.getElementById('cos-grid');
+const cosClose = document.getElementById('cos-close');
+const cosProgressText = document.getElementById('cos-progress-text');
+const wardrobeBtn = document.getElementById('wardrobe-btn');
+
+function openWardrobe() {
+  if (game && game.mode !== 'mp' && game.state === 'playing') {
+    game.state = 'paused';
+    cosmeticPausedRun = true;
+  }
+  renderCosmeticGrid();
+  cosModal.classList.remove('hidden');
+}
+function closeWardrobe() {
+  cosModal.classList.add('hidden');
+  if (cosmeticPausedRun && game && game.state === 'paused') {
+    game.state = 'playing';
+  }
+  cosmeticPausedRun = false;
+}
+
+function renderCosmeticGrid() {
+  if (!game || !game.profile) return;
+  cosGrid.innerHTML = '';
+  let unlockedCount = 0;
+  for (const id of CATALOG_ORDER) {
+    const cos = COSMETICS[id];
+    const unlocked = isUnlocked(game.profile, id);
+    if (unlocked) unlockedCount += 1;
+    const equipped = game.profile.equipped === id;
+    const cell = document.createElement('div');
+    cell.className = 'cos-cell' + (unlocked ? '' : ' locked') + (equipped ? ' equipped' : '');
+    // Mini sprite preview - use the same drawPlayer with the cosmetic.
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const cctx = c.getContext('2d');
+    cctx.translate(32, 42);
+    drawPlayer(cctx, 'straight', cos);
+    cell.appendChild(c);
+    const label = document.createElement('div');
+    label.className = 'cos-name';
+    label.textContent = unlocked ? cos.name : '???';
+    cell.appendChild(label);
+    if (unlocked) {
+      cell.addEventListener('click', () => {
+        if (game.profile.equipped === id) unequip(game.profile);
+        else equip(game.profile, id);
+        renderCosmeticGrid();
+      });
+    }
+    cosGrid.appendChild(cell);
+  }
+  cosProgressText.textContent = `${unlockedCount} / ${CATALOG_ORDER.length}`;
+}
+
+wardrobeBtn.addEventListener('click', openWardrobe);
+cosClose.addEventListener('click', closeWardrobe);
+cosModal.addEventListener('click', (e) => { if (e.target === cosModal) closeWardrobe(); });
 
 fbSend.addEventListener('click', async () => {
   const message = fbText.value.trim();
@@ -531,6 +602,7 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
     game.state = 'title';
     mpGameoverShown = false;
     clearFeedbackPause();
+    clearCosmeticPause();
   }
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
@@ -559,6 +631,7 @@ document.addEventListener('visibilitychange', () => {
 // and wires gameplay-specific listeners onto it.
 window.startMultiplayerGame = function(seed, session) {
   clearFeedbackPause();
+  clearCosmeticPause();
   game = createGame(seed >>> 0);
   game.mode = 'mp';
   game.session = session;
@@ -657,6 +730,7 @@ window.startMultiplayerGame = function(seed, session) {
       game = createGame();
       game.state = 'title';
       clearFeedbackPause();
+    clearCosmeticPause();
       if (typeof openMpModal === 'function') openMpModal();
       return;
     }
@@ -676,6 +750,7 @@ window.startMultiplayerGame = function(seed, session) {
     game = createGame();
     game.state = 'title';
     clearFeedbackPause();
+    clearCosmeticPause();
     if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
     if (typeof openMpModal === 'function') openMpModal();
   });

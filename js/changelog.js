@@ -1,9 +1,18 @@
 // Changelog entries shown in the feedback modal. Newest first.
 // LATEST_VERSION is compared against localStorage 'skifree.changelogSeen'
 // to pulse the ? button when there's something new to look at.
-export const LATEST_VERSION = 'v0.3';
+export const LATEST_VERSION = 'v0.4';
 
 export const CHANGELOG = [
+  {
+    version: 'v0.4 - cosmetics',
+    items: [
+      'NEW: 30 unlockable cosmetics tied to silly achievements',
+      'NEW: wardrobe button to view your collection',
+      'NEW: locked items show as mystery silhouettes - good luck',
+      'NEW: achievement toasts pop up when you unlock something',
+    ],
+  },
   {
     version: 'v0.3 - multiplayer',
     items: [

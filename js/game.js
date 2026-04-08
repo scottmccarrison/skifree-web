@@ -4,6 +4,8 @@ import { createYeti, updateYeti, resetYeti, checkYetiCollision } from './yeti.js
 import { createCritters, resetCritters, updateCritters, checkCritterCollision } from './critters.js';
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
+import { loadProfile, bumpStartRun, recordRunResult } from './profile.js';
+import { checkAchievements } from './achievements.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
 const DEATH_COUNT_KEY = 'skifree.deathCount';
@@ -42,6 +44,19 @@ function pickHint() {
   return HINTS[Math.floor(Math.random() * HINTS.length)];
 }
 
+// Per-run achievement counters. Reset by startRun.
+function createRun() {
+  return {
+    jumps: 0,
+    hops: 0,
+    pauses: 0,
+    turnedEver: false,
+    yetiVisibleSeconds: 0,
+    maxAbsX: 0,
+    crashedAtLeastOnce: false,  // for Speed Demon
+  };
+}
+
 export function createGame(seed) {
   const gameSeed = (seed === undefined ? Date.now() : seed) >>> 0;
   return {
@@ -77,6 +92,10 @@ export function createGame(seed) {
     scoreSubmitted: false,
     rematchPending: false,
     rematchStatus: '',
+    // v0.4: cosmetics + achievements. Profile is the persistent player record.
+    profile: loadProfile(),
+    run: createRun(),
+    toasts: { active: null, queue: [] },  // FIFO toast queue, one visible at a time
   };
 }
 
@@ -99,6 +118,11 @@ export function updateGame(game, input, viewport, dt) {
   game.controlHint = input.mode === 'touch'
     ? 'tap ◀ ▼ ▶ to ski - tap to start'
     : 'left/right to steer - space to start';
+
+  // Tick the toast queue. Strict FIFO: one visible at a time, advance when
+  // the active toast expires. Runs in every state so toasts can finish
+  // playing on the gameover screen.
+  tickToasts(game);
 
   if (game.state === 'title') {
     if (input.restart || input.left || input.right || input.down) {
@@ -125,6 +149,17 @@ export function updateGame(game, input, viewport, dt) {
     if (!game.spectating) {
       updatePlayer(game.player, input, dt, speedMult);
     }
+
+    // Achievement counters - cheap per-frame state tracking.
+    if (input.left || input.right) game.run.turnedEver = true;
+    const absX = Math.abs(game.player.x);
+    if (absX > game.run.maxAbsX) game.run.maxAbsX = absX;
+    if (game.yeti.active && isYetiOnScreen(game, viewport)) {
+      game.run.yetiVisibleSeconds += dt;
+    }
+    // Frame-phase achievements (score milestones, single-run counters).
+    enqueueAchievementToasts(game, checkAchievements('frame', game, game.profile));
+
     // Single source of truth for the camera/world target. render.js reads
     // this so it never disagrees with what world generation is following.
     game.cameraTarget = game.spectating ? pickSpectateTarget(game) : game.player;
@@ -146,15 +181,18 @@ export function updateGame(game, input, viewport, dt) {
     if (hit) {
       if (hit.type.kind === 'jump') {
         launchJump(game.player);
+        if (!hit.counted) { hit.counted = true; game.run.jumps += 1; }
       } else if (hit.type.kind === 'mogul') {
         if (!hit.hopped && !isAirborne(game.player)) {
           hit.hopped = true;
           launchHop(game.player);
+          game.run.hops += 1;
         }
       } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0 && !game.spectating) {
         captureCrashSnapshot(game);
         crashPlayer(game.player);
-        endRun(game);
+        game.run.crashedAtLeastOnce = true;
+        endRun(game, hit.type.kind);  // 'treeLarge'|'treeSmall'|'rock'|'stump'
         return;
       }
     }
@@ -168,7 +206,8 @@ export function updateGame(game, input, viewport, dt) {
     if (!game.spectating && checkCritterCollision(game.critters, game.player)) {
       captureCrashSnapshot(game);
       crashPlayer(game.player);
-      endRun(game);
+      game.run.crashedAtLeastOnce = true;
+      endRun(game, 'squirrel');
       return;
     }
 
@@ -188,7 +227,8 @@ export function updateGame(game, input, viewport, dt) {
         : (typeof target.speedMult === 'number' ? target.speedMult : 1);
       const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty, targetSpeedMult);
       if (eaten && !game.spectating && target === game.player) {
-        endRun(game);
+        game.run.crashedAtLeastOnce = true;
+        endRun(game, 'yeti');
         return;
       }
       // If the yeti caught a remote, that remote's client detects it via
@@ -198,7 +238,8 @@ export function updateGame(game, input, viewport, dt) {
       // Still run an identical collision check locally so deaths are responsive.
       if (!game.spectating && checkYetiCollision(game.yeti, game.player)) {
         crashPlayer(game.player);
-        endRun(game);
+        game.run.crashedAtLeastOnce = true;
+        endRun(game, 'yeti');
         return;
       }
     }
@@ -329,10 +370,14 @@ function startRun(game) {
   game.startY = 0;
   game.elapsed = 0;
   game.state = 'playing';
+  // v0.4: reset per-run counters and bump profile.
+  game.run = createRun();
+  bumpStartRun(game.profile);
+  enqueueAchievementToasts(game, checkAchievements('startRun', game, game.profile));
 }
 
 export function forceEndRun(game) {
-  if (game.state === 'playing' || game.state === 'paused') endRun(game);
+  if (game.state === 'playing' || game.state === 'paused') endRun(game, 'forced');
 }
 
 export function forceGameOver(game) {
@@ -361,19 +406,31 @@ function finalizeScore(game) {
   } catch {}
   const finalScore = Math.floor(game.score);
   const name = getStoredName().trim() || 'anon';
+  // Record into the persistent profile so Hot Streak / Comeback Kid /
+  // Touch Grass have something to look at on the next run.
+  recordRunResult(game.profile, finalScore, game.highScore);
   game.personalBests = recordPersonalBest(finalScore);
   if (finalScore > 0) {
     game.leaderboardLoading = true;
     submitScore(name, finalScore).then(board => {
       game.leaderboardLoading = false;
       if (board) game.leaderboard = board;
+      // Check leaderboard-phase achievements once the server response lands.
+      enqueueAchievementToasts(game, checkAchievements('leaderboard', game, game.profile, {
+        daily: board?.daily || [],
+        alltime: board?.alltime || [],
+        myName: name,
+      }));
     });
   }
 }
 
-function endRun(game) {
+function endRun(game, causeOfDeath = 'unknown') {
   if (game.spectating) return;
   if (game.state === 'gameover') return;
+  // Fire end-run achievements (Roadkill, Yeti Snack, baby_steps, etc.) BEFORE
+  // the spectator branch so MP-spectator deaths still earn the unlock.
+  enqueueAchievementToasts(game, checkAchievements('endRun', game, game.profile, { causeOfDeath }));
   // MP: notify peer of our death once, regardless of which branch we take.
   if (game.mode === 'mp' && game.session && !game.diedSent) {
     try { game.session.sendDied(); } catch {}
@@ -402,4 +459,47 @@ function endRun(game) {
 
   game.state = 'gameover';
   game.hint = pickHint();
+}
+
+// ---- v0.4 toast & achievement helpers ----
+
+const TOAST_DURATION_MS = 2500;
+
+// Advance the toast queue. Pops the active toast when it expires and pulls
+// the next one from the queue. Strict FIFO, one visible at a time.
+function tickToasts(game) {
+  if (!game.toasts) return;
+  const now = performance.now();
+  if (game.toasts.active && now - game.toasts.active.startedAt > TOAST_DURATION_MS) {
+    game.toasts.active = null;
+  }
+  if (!game.toasts.active && game.toasts.queue.length > 0) {
+    const next = game.toasts.queue.shift();
+    game.toasts.active = { ...next, startedAt: now };
+  }
+}
+
+// Push newly-unlocked achievements onto the toast queue. checkAchievements
+// returns an array of {achievement, cosmeticId}; we copy the bits we need
+// for rendering (name + cosmetic id) so the toast is self-contained.
+function enqueueAchievementToasts(game, newly) {
+  if (!newly || newly.length === 0) return;
+  for (const { achievement, cosmeticId } of newly) {
+    game.toasts.queue.push({
+      name: achievement.name,
+      cosmeticId,
+    });
+  }
+}
+
+// Yeti Survivor needs to know if the yeti is currently visible to the
+// player. Approximate by checking if the yeti's world coords fall inside
+// the camera viewport (with a small margin matching the sprite size).
+function isYetiOnScreen(game, viewport) {
+  const cam = game.cameraPos || game.cameraTarget || game.player;
+  const camX = cam.x - viewport.w / 2;
+  const camY = cam.y - viewport.h / 3;
+  const sx = game.yeti.x - camX;
+  const sy = game.yeti.y - camY;
+  return sx >= -30 && sx <= viewport.w + 30 && sy >= -30 && sy <= viewport.h + 30;
 }

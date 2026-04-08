@@ -81,7 +81,8 @@ html, body {
   background: #fff;
 }
 
-#help-btn {
+#help-btn,
+#wardrobe-btn {
   width: 32px;
   height: 32px;
   font: bold 18px -apple-system, system-ui, sans-serif;
@@ -94,7 +95,8 @@ html, body {
   touch-action: manipulation;
 }
 
-#help-btn:hover {
+#help-btn:hover,
+#wardrobe-btn:hover {
   background: #fff;
   border-color: rgba(26, 26, 26, 0.9);
 }
@@ -359,3 +361,75 @@ html, body {
 .cl-ver { font-weight: bold; margin-bottom: 4px; }
 #changelog-body ul { margin: 0 0 0 18px; padding: 0; }
 #changelog-body li { margin: 2px 0; }
+
+/* v0.4: cosmetic catalog modal. Reuses the .fb-card overlay base. */
+#cosmetic-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+#cosmetic-modal.hidden { display: none; }
+.cosmetic-card { max-width: 360px; width: 90vw; }
+.cos-progress {
+  text-align: center;
+  font: 12px -apple-system, system-ui, sans-serif;
+  color: #555;
+  margin: 4px 0 12px;
+}
+#cos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+.cos-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: 2px solid rgba(26,26,26,0.25);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+.cos-cell canvas {
+  display: block;
+}
+.cos-cell.locked {
+  cursor: default;
+  opacity: 0.55;
+}
+.cos-cell.locked canvas {
+  filter: grayscale(1) brightness(0.7);
+}
+.cos-cell.equipped {
+  border-color: #1a1a1a;
+  background: #ffd400;
+}
+.cos-name {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  right: 2px;
+  font: 9px -apple-system, system-ui, sans-serif;
+  text-align: center;
+  color: #1a1a1a;
+  background: rgba(255,255,255,0.8);
+  border-radius: 3px;
+  padding: 1px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cos-cell.locked .cos-name {
+  color: #888;
+  font-style: italic;
+}
