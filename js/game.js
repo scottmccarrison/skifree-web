@@ -369,6 +369,13 @@ function resetMpState(game) {
 }
 
 function startRun(game) {
+  // For solo, re-seed each run so the world AND scene rotate. MP path
+  // never reaches startRun for new runs - it goes through createGame
+  // with a worker-supplied seed via window.startMultiplayerGame.
+  if (game.mode !== 'mp') {
+    game.seed = Date.now() >>> 0;
+    game.scene = pickSceneForSeed(game.seed);
+  }
   game.player = createPlayer();
   game.world = createWorld(game.seed);
   resetYeti(game.yeti);
