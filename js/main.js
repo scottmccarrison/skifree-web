@@ -1,11 +1,22 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle, enqueueChatBubble, clearChatBubblesForPeer } from './game.js';
+import { CHAT_PRESETS } from './chatPresets.js';
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 import { createSession } from './net.js';
 import { colorForIndex } from './colors.js';
+import { drawPlayer } from './sprites.js';
+import { COSMETICS, CATALOG_ORDER } from './cosmetics.js';
+import { ACHIEVEMENTS } from './achievements.js';
+import { equip, unequip, isUnlocked } from './profile.js';
+
+// Reverse lookup: cosmetic id -> achievement that unlocks it. Built once at
+// module load so the wardrobe can show "earned by" info per row.
+const ACH_BY_COSMETIC = Object.fromEntries(
+  ACHIEVEMENTS.map(a => [a.unlocks, a])
+);
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -73,6 +84,10 @@ function openFeedback() {
     game.state = 'paused';
     feedbackPausedRun = true;
   }
+  // v0.4: count pauses for The Yetis Are Watching achievement. Solo only -
+  // MP doesn't actually pause when feedback opens, so counting MP feedback
+  // opens would falsely award the achievement to multiplayer players.
+  if (game && game.run && game.mode !== 'mp') game.run.pauses += 1;
   fbStatus.textContent = '';
   fbText.value = '';
   fbSend.disabled = false;
@@ -116,6 +131,109 @@ document.getElementById('help-btn').addEventListener('click', () => {
 fbCancel.addEventListener('click', closeFeedback);
 fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
 fbText.addEventListener('keydown', (e) => e.stopPropagation());
+
+// ---- v0.4: cosmetic wardrobe ----
+// Same pause-on-open contract as feedback (solo only). Different module-level
+// flag so opening one doesn't accidentally clear the other's pause state.
+let cosmeticPausedRun = false;
+function clearCosmeticPause() { cosmeticPausedRun = false; }
+
+const cosModal = document.getElementById('cosmetic-modal');
+const cosGrid = document.getElementById('cos-grid');
+const cosClose = document.getElementById('cos-close');
+const cosProgressText = document.getElementById('cos-progress-text');
+const wardrobeBtn = document.getElementById('wardrobe-btn');
+
+function openWardrobe() {
+  if (game && game.mode !== 'mp' && game.state === 'playing') {
+    game.state = 'paused';
+    cosmeticPausedRun = true;
+  }
+  renderCosmeticGrid();
+  cosModal.classList.remove('hidden');
+}
+function closeWardrobe() {
+  cosModal.classList.add('hidden');
+  if (cosmeticPausedRun && game && game.state === 'paused') {
+    game.state = 'playing';
+  }
+  cosmeticPausedRun = false;
+}
+
+function renderCosmeticGrid() {
+  if (!game || !game.profile) return;
+  cosGrid.innerHTML = '';
+  let unlockedCount = 0;
+  for (const id of CATALOG_ORDER) {
+    const cos = COSMETICS[id];
+    const ach = ACH_BY_COSMETIC[id];
+    const unlocked = isUnlocked(game.profile, id);
+    if (unlocked) unlockedCount += 1;
+    const equipped = game.profile.equipped === id;
+
+    const cell = document.createElement('div');
+    cell.className = 'cos-cell' + (unlocked ? '' : ' locked') + (equipped ? ' equipped' : '');
+
+    // Sprite preview on the left.
+    const preview = document.createElement('div');
+    preview.className = 'cos-preview';
+    const c = document.createElement('canvas');
+    c.width = 56; c.height = 56;
+    const cctx = c.getContext('2d');
+    cctx.translate(28, 38);
+    drawPlayer(cctx, 'straight', cos);
+    preview.appendChild(c);
+    cell.appendChild(preview);
+
+    // Info block: cosmetic name, achievement name, description (or all '???' if locked).
+    const info = document.createElement('div');
+    info.className = 'cos-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'cos-info-name';
+    nameEl.textContent = unlocked ? cos.name : '???';
+    info.appendChild(nameEl);
+    if (unlocked && ach) {
+      const achNameEl = document.createElement('div');
+      achNameEl.className = 'cos-info-ach';
+      achNameEl.textContent = ach.name;
+      info.appendChild(achNameEl);
+      if (ach.description) {
+        const descEl = document.createElement('div');
+        descEl.className = 'cos-info-desc';
+        descEl.textContent = ach.description;
+        info.appendChild(descEl);
+      }
+    } else if (!unlocked) {
+      const lockedEl = document.createElement('div');
+      lockedEl.className = 'cos-info-ach';
+      lockedEl.textContent = 'Locked';
+      info.appendChild(lockedEl);
+    }
+    cell.appendChild(info);
+
+    // "EQUIPPED" tag on the right when active.
+    if (equipped) {
+      const tag = document.createElement('div');
+      tag.className = 'cos-equipped-tag';
+      tag.textContent = 'Equipped';
+      cell.appendChild(tag);
+    }
+
+    if (unlocked) {
+      cell.addEventListener('click', () => {
+        if (game.profile.equipped === id) unequip(game.profile);
+        else equip(game.profile, id);
+        renderCosmeticGrid();
+      });
+    }
+    cosGrid.appendChild(cell);
+  }
+  cosProgressText.textContent = `${unlockedCount} / ${CATALOG_ORDER.length}`;
+}
+
+wardrobeBtn.addEventListener('click', openWardrobe);
+cosClose.addEventListener('click', closeWardrobe);
+cosModal.addEventListener('click', (e) => { if (e.target === cosModal) closeWardrobe(); });
 
 fbSend.addEventListener('click', async () => {
   const message = fbText.value.trim();
@@ -223,9 +341,79 @@ if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal
 // the user can't hit tab buttons or the gift icon. Toggle pointer-events
 // on the wrapper based on game state.
 const touchZonesEl = document.getElementById('touch-zones');
+const titleBtnEl = document.getElementById('title-button');
+const chatBarEl = document.getElementById('chat-bar');
+
+// Mount preset buttons once. Click handlers gate on session + cooldown and
+// optimistically self-echo so the sender sees their own bubble immediately.
+let chatCooldownUntil = 0;
+function mountChatBar() {
+  if (!chatBarEl || chatBarEl.dataset.mounted === '1') return;
+  chatBarEl.dataset.mounted = '1';
+  for (const preset of CHAT_PRESETS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-btn';
+    btn.title = preset.text;
+    btn.textContent = preset.emoji;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = performance.now();
+      if (now < chatCooldownUntil) return;
+      if (!mpSession || mpSession.id == null) return;
+      try { mpSession.sendChat(preset.id); } catch {}
+      // Optimistic self-echo: render our own bubble immediately.
+      enqueueChatBubble(game, mpSession.id, preset.id);
+      chatCooldownUntil = now + 1000;
+      // Grey out all buttons for 1s to mirror the worker rate limit.
+      for (const b of chatBarEl.querySelectorAll('.chat-btn')) {
+        b.disabled = true;
+        b.style.opacity = '0.5';
+      }
+      setTimeout(() => {
+        for (const b of chatBarEl.querySelectorAll('.chat-btn')) {
+          b.disabled = false;
+          b.style.opacity = '';
+        }
+      }, 1000);
+    });
+    chatBarEl.appendChild(btn);
+  }
+}
+mountChatBar();
+
+function isMpModalOpen() {
+  const m = document.getElementById('mp-modal');
+  return !!(m && !m.classList.contains('hidden'));
+}
+
+function shouldShowChatBar() {
+  if (!game || game.mode !== 'mp') return false;
+  if (!mpSession || mpSession.id == null) return false;
+  return !!(game.spectating || isMpModalOpen() || game.state === 'gameover') && !isMpModalOpen();
+}
+
 function syncTouchZones() {
   if (!touchZonesEl) return;
   touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
+  // Hide the SKI FREE end-run button on title/gameover so it doesn't crash
+  // into the initials input on narrow screens. It only does anything during
+  // an active run anyway.
+  if (titleBtnEl) {
+    const showBtn = (game.state === 'playing' || game.state === 'paused');
+    titleBtnEl.style.display = showBtn ? '' : 'none';
+  }
+  // Derive chat bar visibility per-frame. Handles peerLeft drop-to-solo,
+  // host disconnect reset, reconnect, rematch lobby, pre-welcome gaps.
+  if (chatBarEl) {
+    const show = shouldShowChatBar();
+    chatBarEl.hidden = !show;
+    // Shrink the touch zones' bottom inset so the chat bar row doesn't
+    // steal steering taps on mobile.
+    touchZonesEl.classList.toggle('chat-inset', show);
+  }
+  const topRight = document.getElementById('top-right');
+  if (topRight) topRight.classList.toggle('spectating-hidden', !!game.spectating);
 }
 
 // Multiplayer lobby modal wiring.
@@ -531,6 +719,7 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
     game.state = 'title';
     mpGameoverShown = false;
     clearFeedbackPause();
+    clearCosmeticPause();
   }
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
@@ -559,6 +748,7 @@ document.addEventListener('visibilitychange', () => {
 // and wires gameplay-specific listeners onto it.
 window.startMultiplayerGame = function(seed, session) {
   clearFeedbackPause();
+  clearCosmeticPause();
   game = createGame(seed >>> 0);
   game.mode = 'mp';
   game.session = session;
@@ -575,6 +765,7 @@ window.startMultiplayerGame = function(seed, session) {
       state: 'straight',
       score: 0,
       speedMult: 1,
+      equipped: null,  // populated by incoming state messages
       alive: true,
       prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
     });
@@ -588,6 +779,10 @@ window.startMultiplayerGame = function(seed, session) {
   if (session.__gameplayWired) return;
   session.__gameplayWired = true;
 
+  session.on('chat', ({ from, presetId }) => {
+    enqueueChatBubble(game, from, presetId);
+  });
+
   session.on('state', e => {
     if (typeof e.id !== 'number') return;
     let r = game.remotes.get(e.id);
@@ -595,7 +790,7 @@ window.startMultiplayerGame = function(seed, session) {
       const meta = (session.roster || []).find(p => p.id === e.id) || {};
       r = {
         id: e.id, name: meta.name || `anon${e.id}`, color: meta.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       };
       game.remotes.set(e.id, r);
@@ -613,6 +808,9 @@ window.startMultiplayerGame = function(seed, session) {
     if (e.state) r.state = e.state;
     if (typeof e.score === 'number') r.score = e.score;
     if (typeof e.speedMult === 'number') r.speedMult = e.speedMult;
+    // v0.4 phase 2: equipped cosmetic id (string), null (cleared), or
+    // skip if absent/wrong-type (older client compat).
+    if (typeof e.equipped === 'string' || e.equipped === null) r.equipped = e.equipped;
     r.lastT = performance.now() / 1000;
     // Non-host: yeti rides along on the host's broadcast.
     if (!game.isHost && e.yeti) {
@@ -642,7 +840,7 @@ window.startMultiplayerGame = function(seed, session) {
     if (!game.remotes.has(e.id)) {
       game.remotes.set(e.id, {
         id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       });
     }
@@ -650,6 +848,7 @@ window.startMultiplayerGame = function(seed, session) {
   session.on('peerLeft', e => {
     if (e && typeof e.id === 'number') {
       game.remotes.delete(e.id);
+      clearChatBubblesForPeer(game, e.id);
     }
     // Host disconnect = session ends for joiners.
     if (e && e.wasHost) {
@@ -657,6 +856,7 @@ window.startMultiplayerGame = function(seed, session) {
       game = createGame();
       game.state = 'title';
       clearFeedbackPause();
+    clearCosmeticPause();
       if (typeof openMpModal === 'function') openMpModal();
       return;
     }
@@ -676,6 +876,7 @@ window.startMultiplayerGame = function(seed, session) {
     game = createGame();
     game.state = 'title';
     clearFeedbackPause();
+    clearCosmeticPause();
     if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
     if (typeof openMpModal === 'function') openMpModal();
   });

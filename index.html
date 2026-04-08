@@ -14,6 +14,7 @@
 
   <div id="top-right">
     <input id="name-input" type="text" maxlength="4" placeholder="initials" autocomplete="off" />
+    <button id="wardrobe-btn" type="button" title="cosmetics &amp; achievements">W</button>
     <button id="help-btn" type="button" title="report a bug or suggestion">?</button>
   </div>
 
@@ -62,6 +63,19 @@
       <button id="mp-cancel" class="mp-btn mp-btn-secondary">Cancel</button>
     </div>
   </div>
+
+  <div id="cosmetic-modal" class="hidden" role="dialog" aria-modal="true">
+    <div class="fb-card cosmetic-card">
+      <div class="fb-title">Wardrobe</div>
+      <div class="cos-progress"><span id="cos-progress-text">0 / 30</span> unlocked</div>
+      <div id="cos-grid"></div>
+      <div class="fb-actions">
+        <button id="cos-close" type="button">close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-bar" class="chat-bar" hidden></div>
 
   <div id="touch-zones" aria-hidden="true">
     <div class="tzone" data-dir="left"></div>
