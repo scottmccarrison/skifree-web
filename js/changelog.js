@@ -1,7 +1,7 @@
 // Changelog entries shown in the feedback modal. Newest first.
 // LATEST_VERSION is compared against localStorage 'skifree.changelogSeen'
 // to pulse the ? button when there's something new to look at.
-export const LATEST_VERSION = 'v0.4';
+export const LATEST_VERSION = 'v0.4.0';
 
 export const CHANGELOG = [
   {
