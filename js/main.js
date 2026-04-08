@@ -390,7 +390,7 @@ function isMpModalOpen() {
 function shouldShowChatBar() {
   if (!game || game.mode !== 'mp') return false;
   if (!mpSession || mpSession.id == null) return false;
-  return !!(game.spectating || isMpModalOpen() || game.state === 'gameover');
+  return !!(game.spectating || isMpModalOpen() || game.state === 'gameover') && !isMpModalOpen();
 }
 
 function syncTouchZones() {

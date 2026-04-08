@@ -174,8 +174,8 @@ export class Room {
         break;
       }
       case 'chat': {
-        if (typeof data.presetId !== 'number') break;
-        const presetId = data.presetId | 0;
+        if (!Number.isInteger(data.presetId)) break;
+        const presetId = data.presetId;
         if (presetId < 1 || presetId > 8) break;
         const now = Date.now();
         // Rate limit state lives in the serialized attachment so it survives
