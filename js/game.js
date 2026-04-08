@@ -6,6 +6,7 @@ import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPe
 import { captureCrashSnapshot } from './diagnostics.js';
 import { loadProfile, bumpStartRun, recordRunResult } from './profile.js';
 import { checkAchievements } from './achievements.js';
+import { pickSceneForSeed } from './scenes.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
 const DEATH_COUNT_KEY = 'skifree.deathCount';
@@ -61,6 +62,9 @@ export function createGame(seed) {
   return {
     state: 'title', // 'title' | 'playing' | 'paused' | 'gameover'
     seed: gameSeed,
+    // Visual scene (palette + bg tint) derived deterministically from the
+    // seed so MP clients agree without any protocol change.
+    scene: pickSceneForSeed(gameSeed),
     player: createPlayer(),
     world: createWorld(gameSeed),
     yeti: createYeti(gameSeed),
