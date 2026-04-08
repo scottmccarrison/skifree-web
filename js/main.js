@@ -8,7 +8,14 @@ import { createSession } from './net.js';
 import { colorForIndex } from './colors.js';
 import { drawPlayer } from './sprites.js';
 import { COSMETICS, CATALOG_ORDER } from './cosmetics.js';
+import { ACHIEVEMENTS } from './achievements.js';
 import { equip, unequip, isUnlocked } from './profile.js';
+
+// Reverse lookup: cosmetic id -> achievement that unlocks it. Built once at
+// module load so the wardrobe can show "earned by" info per row.
+const ACH_BY_COSMETIC = Object.fromEntries(
+  ACHIEVEMENTS.map(a => [a.unlocks, a])
+);
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -156,22 +163,59 @@ function renderCosmeticGrid() {
   let unlockedCount = 0;
   for (const id of CATALOG_ORDER) {
     const cos = COSMETICS[id];
+    const ach = ACH_BY_COSMETIC[id];
     const unlocked = isUnlocked(game.profile, id);
     if (unlocked) unlockedCount += 1;
     const equipped = game.profile.equipped === id;
+
     const cell = document.createElement('div');
     cell.className = 'cos-cell' + (unlocked ? '' : ' locked') + (equipped ? ' equipped' : '');
-    // Mini sprite preview - use the same drawPlayer with the cosmetic.
+
+    // Sprite preview on the left.
+    const preview = document.createElement('div');
+    preview.className = 'cos-preview';
     const c = document.createElement('canvas');
-    c.width = 64; c.height = 64;
+    c.width = 56; c.height = 56;
     const cctx = c.getContext('2d');
-    cctx.translate(32, 42);
+    cctx.translate(28, 38);
     drawPlayer(cctx, 'straight', cos);
-    cell.appendChild(c);
-    const label = document.createElement('div');
-    label.className = 'cos-name';
-    label.textContent = unlocked ? cos.name : '???';
-    cell.appendChild(label);
+    preview.appendChild(c);
+    cell.appendChild(preview);
+
+    // Info block: cosmetic name, achievement name, description (or all '???' if locked).
+    const info = document.createElement('div');
+    info.className = 'cos-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'cos-info-name';
+    nameEl.textContent = unlocked ? cos.name : '???';
+    info.appendChild(nameEl);
+    if (unlocked && ach) {
+      const achNameEl = document.createElement('div');
+      achNameEl.className = 'cos-info-ach';
+      achNameEl.textContent = ach.name;
+      info.appendChild(achNameEl);
+      if (ach.description) {
+        const descEl = document.createElement('div');
+        descEl.className = 'cos-info-desc';
+        descEl.textContent = ach.description;
+        info.appendChild(descEl);
+      }
+    } else if (!unlocked) {
+      const lockedEl = document.createElement('div');
+      lockedEl.className = 'cos-info-ach';
+      lockedEl.textContent = 'Locked';
+      info.appendChild(lockedEl);
+    }
+    cell.appendChild(info);
+
+    // "EQUIPPED" tag on the right when active.
+    if (equipped) {
+      const tag = document.createElement('div');
+      tag.className = 'cos-equipped-tag';
+      tag.textContent = 'Equipped';
+      cell.appendChild(tag);
+    }
+
     if (unlocked) {
       cell.addEventListener('click', () => {
         if (game.profile.equipped === id) unequip(game.profile);
@@ -294,9 +338,17 @@ if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal
 // the user can't hit tab buttons or the gift icon. Toggle pointer-events
 // on the wrapper based on game state.
 const touchZonesEl = document.getElementById('touch-zones');
+const titleBtnEl = document.getElementById('title-button');
 function syncTouchZones() {
   if (!touchZonesEl) return;
   touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
+  // Hide the SKI FREE end-run button on title/gameover so it doesn't crash
+  // into the initials input on narrow screens. It only does anything during
+  // an active run anyway.
+  if (titleBtnEl) {
+    const showBtn = (game.state === 'playing' || game.state === 'paused');
+    titleBtnEl.style.display = showBtn ? '' : 'none';
+  }
 }
 
 // Multiplayer lobby modal wiring.

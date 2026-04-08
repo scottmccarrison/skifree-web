@@ -381,55 +381,84 @@ html, body {
   margin: 4px 0 12px;
 }
 #cos-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   max-height: 60vh;
   overflow-y: auto;
   padding: 4px;
 }
 .cos-cell {
-  position: relative;
-  aspect-ratio: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
   border: 2px solid rgba(26,26,26,0.25);
   border-radius: 8px;
-  background: rgba(255,255,255,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(255,255,255,0.7);
   cursor: pointer;
-  overflow: hidden;
-}
-.cos-cell canvas {
-  display: block;
+  min-height: 64px;
 }
 .cos-cell.locked {
   cursor: default;
-  opacity: 0.55;
 }
 .cos-cell.locked canvas {
   filter: grayscale(1) brightness(0.7);
+  opacity: 0.6;
 }
 .cos-cell.equipped {
   border-color: #1a1a1a;
   background: #ffd400;
 }
-.cos-name {
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-  right: 2px;
-  font: 9px -apple-system, system-ui, sans-serif;
-  text-align: center;
+.cos-preview {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cos-preview canvas { display: block; }
+.cos-info {
+  flex: 1;
+  min-width: 0;
+}
+.cos-info-name {
+  font: bold 13px -apple-system, system-ui, sans-serif;
   color: #1a1a1a;
-  background: rgba(255,255,255,0.8);
-  border-radius: 3px;
-  padding: 1px 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cos-cell.locked .cos-name {
-  color: #888;
+.cos-info-ach {
+  font: 11px -apple-system, system-ui, sans-serif;
+  color: #555;
+  margin-top: 2px;
+}
+.cos-info-desc {
+  font: italic 10px -apple-system, system-ui, sans-serif;
+  color: #777;
+  margin-top: 1px;
+}
+.cos-cell.locked .cos-info-name {
+  color: #999;
   font-style: italic;
+}
+.cos-cell.locked .cos-info-ach {
+  color: #aaa;
+}
+.cos-equipped-tag {
+  flex: 0 0 auto;
+  font: bold 10px -apple-system, system-ui, sans-serif;
+  color: #1a1a1a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* iPhone-class narrow screens: shrink the initials input so the SKI FREE
+   button (when visible during a run) doesn't crash into it. */
+@media (max-width: 420px) {
+  #name-input { width: 56px; padding: 4px 6px; font-size: 13px; }
+  #title-button { font-size: 16px; padding: 5px 10px; letter-spacing: 0.5px; }
 }
