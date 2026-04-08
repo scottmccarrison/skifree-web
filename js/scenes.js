@@ -32,9 +32,9 @@ export const SCENES = [
     name: 'Winter Birch',
     weight: 20,
     palette: {
-      treeFoliageDark: '#d4dce4', // bare branches; "foliage" = sparse twigs
-      treeFoliageLight: '#e8eef4',
-      treeTrunk: '#f0f0ee', // birch white
+      treeFoliageDark: '#5a6a7e', // bare branches against snow - must read clearly
+      treeFoliageLight: '#6a7a8e',
+      treeTrunk: '#3a4555', // dark trunk for silhouette pop
       treeStarTop: '#ffffff',
       logBody: '#8a9aa8',
       logEnd: '#b8c6d6',
@@ -59,11 +59,11 @@ export const SCENES = [
       treeFoliageLight: '#243a52',
       treeTrunk: '#3a2818',
       treeStarTop: '#ffd9a0',
-      logBody: '#3a2818',
-      logEnd: '#5a3a24',
+      logBody: '#5a3a24',
+      logEnd: '#7a5234',
       logOutline: '#1a0e08',
-      stumpBody: '#4a3020',
-      stumpRing: '#1a0e08',
+      stumpBody: '#3a2418',
+      stumpRing: '#7a5234',
       rockBody: '#5a5a6a',
       rockOutline: '#1a1a2a',
       mogulLight: '#e8e0f0',
@@ -89,9 +89,9 @@ export const SCENES = [
       stumpRing: '#0a0a0a',
       rockBody: '#1a1a1a',
       rockOutline: '#000000',
-      mogulLight: '#d8d4d0',
-      mogulShade: '#6a6864',
-      mogulOutline: '#2a2824',
+      mogulLight: '#9a9690',
+      mogulShade: '#4a4844',
+      mogulOutline: '#1a1814',
       easterEgg: 'embers',
     },
     bgTint: [-10, -12, -18], // ashier, slightly desaturated grey
