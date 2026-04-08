@@ -102,6 +102,8 @@ html, body {
   cursor: default;
 }
 
+#top-right.spectating-hidden { display: none; }
+
 #top-right {
   position: fixed;
   z-index: 10;

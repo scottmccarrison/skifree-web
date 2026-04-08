@@ -233,8 +233,11 @@ export function render(ctx, viewport, game) {
   ctx.fillText(`best: ${Math.floor(highScore)} m`, 16, 46);
   ctx.fillText(`deaths: ${deathCount || 0}`, 16, 62);
   if (game.mode === 'mp' && game.remotes) {
+    if (game._rosterRowPositions) game._rosterRowPositions.clear();
+    const localId = game.session ? game.session.id : null;
     const all = [];
     all.push({
+      id: localId,
       name: 'YOU',
       color: game.localColor != null ? game.localColor : 0,
       score: Math.floor(game.score || 0),
@@ -242,6 +245,7 @@ export function render(ctx, viewport, game) {
     });
     for (const r of game.remotes.values()) {
       all.push({
+        id: r.id,
         name: r.name || `anon${r.id}`,
         color: r.color,
         score: Math.floor(r.score || 0),
@@ -249,25 +253,32 @@ export function render(ctx, viewport, game) {
       });
     }
     all.sort((a, b) => b.score - a.score);
+    const spectating = !!game.spectating;
     const startX = 16;
     const startY = 78;
-    const rowH = 14;
+    const rowH = spectating ? 22 : 14;
+    const fontSize = spectating ? 14 : 11;
+    const swatchSize = spectating ? 14 : 10;
     ctx.save();
-    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.font = `${fontSize}px -apple-system, system-ui, sans-serif`;
     ctx.textBaseline = 'top';
     for (let i = 0; i < all.length; i++) {
       const p = all[i];
       const y = startY + i * rowH;
+      if (game._rosterRowPositions && p.id != null) {
+        game._rosterRowPositions.set(p.id, { x: startX, y, rowH });
+      }
+      const swatchY = y + (rowH - swatchSize) / 2;
       ctx.fillStyle = colorForIndex(p.color);
-      ctx.fillRect(startX, y + 2, 10, 10);
+      ctx.fillRect(startX, swatchY, swatchSize, swatchSize);
       ctx.strokeStyle = 'rgba(0,0,0,0.4)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(startX + 0.5, y + 2.5, 9, 9);
+      ctx.strokeRect(startX + 0.5, swatchY + 0.5, swatchSize - 1, swatchSize - 1);
       ctx.fillStyle = p.alive ? (inverted ? '#f4faff' : '#1a1a1a') : '#888';
       const nm = p.name.length > 8 ? p.name.slice(0, 8) : p.name;
       let label = `${nm} ${p.score}`;
       if (!p.alive) label += ' x';
-      ctx.fillText(label, startX + 16, y);
+      ctx.fillText(label, startX + swatchSize + 6, y + (rowH - fontSize) / 2);
     }
     ctx.restore();
     ctx.textBaseline = 'alphabetic';
@@ -280,7 +291,7 @@ export function render(ctx, viewport, game) {
 
   // Spectator chat bubbles (drawn after the toast so they layer on top).
   if (game.chatBubbles && game.chatBubbles.length > 0) {
-    drawChatBubbles(ctx, viewport, game, camX, camY);
+    drawChatBubbles(ctx, viewport, game);
   }
 
   // State overlays.
@@ -376,100 +387,77 @@ function drawAchievementToast(ctx, viewport, toast) {
 function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 function easeIn(t)  { return Math.pow(t, 3); }
 
-// Spectator chat bubbles: float above the sender's avatar using the same
-// world->screen transform the remote racers use (camX/camY from cameraPos).
-// Local self-echo is special-cased because the local player is never in
-// game.remotes.
-function drawChatBubbles(ctx, viewport, game, camX, camY) {
-  const BUBBLE_MS = 3500;
-  const FADE_MS = 500;
+// Spectator chat bubbles: anchored to the sender's roster row on the
+// left HUD. The roster draw stashes per-peer (x, y, rowH) into
+// game._rosterRowPositions each frame; we read from there so the bubble
+// always lands next to the right name regardless of world position.
+function drawChatBubbles(ctx, viewport, game) {
+  if (!game.chatBubbles || game.chatBubbles.length === 0) return;
+  if (!game._rosterRowPositions) return;
   const now = performance.now();
-  const localId = game.session ? game.session.id : null;
 
-  for (const bubble of game.chatBubbles) {
-    const preset = getPreset(bubble.presetId);
+  for (const b of game.chatBubbles) {
+    const row = game._rosterRowPositions.get(b.peerId);
+    if (!row) continue; // sender not in roster (disconnected mid-bubble)
+    const preset = getPreset(b.presetId);
     if (!preset) continue;
 
-    // Resolve world position.
-    let wx = null, wy = null;
-    if (localId != null && bubble.peerId === localId) {
-      wx = game.player.x;
-      wy = game.player.y;
-    } else if (game.remotes) {
-      const r = game.remotes.get ? game.remotes.get(bubble.peerId)
-                                 : game.remotes[bubble.peerId];
-      if (r) {
-        const lr = lerpRemote(r);
-        wx = lr.x;
-        wy = lr.y;
-      }
-    }
-    if (wx == null || !Number.isFinite(wx) || !Number.isFinite(wy)) continue;
-
-    // Fade over final 500ms.
-    const age = now - (bubble.expiresAt - BUBBLE_MS);
-    const remaining = bubble.expiresAt - now;
+    // Fade last 500ms
+    const remaining = b.expiresAt - now;
     let alpha = 1;
-    if (remaining < FADE_MS) alpha = Math.max(0, remaining / FADE_MS);
-    if (age < 0 || alpha <= 0) continue;
+    if (remaining < 500) alpha = Math.max(0, remaining / 500);
+    if (alpha <= 0) continue;
 
-    // Measure label.
-    const label = `${preset.emoji} ${preset.text}`;
     ctx.save();
-    ctx.font = 'bold 12px -apple-system, system-ui, sans-serif';
-    const textW = ctx.measureText(label).width;
-    const padX = 10, padY = 6;
-    const W = Math.ceil(textW + padX * 2);
-    const H = 24;
-
-    // Screen position above the sprite head (~32px up).
-    let sx = wx - camX;
-    let sy = wy - camY - 32;
-
-    // Center the bubble horizontally on the peer.
-    let bx = sx - W / 2;
-    let by = sy - H;
-
-    // Off-screen clamp with directional indicator when sender is far
-    // ahead/behind the spectated target.
-    const margin = 8;
-    let clamped = false;
-    if (bx < margin) { bx = margin; clamped = true; }
-    if (bx + W > viewport.w - margin) { bx = viewport.w - margin - W; clamped = true; }
-    if (by < margin) { by = margin; clamped = true; }
-    if (by + H > viewport.h - margin) { by = viewport.h - margin - H; clamped = true; }
-
     ctx.globalAlpha = alpha;
-    // .fb-card palette: white bg, ink border, rounded.
-    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+
+    // Measure text
+    ctx.font = '13px -apple-system, system-ui, sans-serif';
+    const text = `${preset.emoji} ${preset.text}`;
+    const textW = ctx.measureText(text).width;
+    const padX = 10, padY = 6;
+    const W = textW + padX * 2;
+    const H = 13 + padY * 2;
+
+    // Position: to the RIGHT of the row, vertically centered on the row
+    const bx = row.x + 130;
+    const by = row.y + (row.rowH / 2) - (H / 2);
+
+    // Bubble background
+    ctx.fillStyle = '#fff';
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, W, H, 12);
+    if (ctx.roundRect) ctx.roundRect(bx, by, W, H, 8);
     else ctx.rect(bx, by, W, H);
     ctx.fill();
     ctx.stroke();
 
+    // Tail pointing LEFT toward the row
+    ctx.beginPath();
+    ctx.moveTo(bx, by + H / 2 - 5);
+    ctx.lineTo(bx - 6, by + H / 2);
+    ctx.lineTo(bx, by + H / 2 + 5);
+    ctx.closePath();
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.stroke();
+    // Mask the seam where the tail meets the bubble
+    ctx.beginPath();
+    ctx.moveTo(bx, by + H / 2 - 4);
+    ctx.lineTo(bx, by + H / 2 + 4);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Text
     ctx.fillStyle = '#1a1a1a';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, bx + padX, by + H / 2 + 1);
+    ctx.textAlign = 'left';
+    ctx.fillText(text, bx + padX, by + H / 2);
     ctx.textBaseline = 'alphabetic';
 
-    if (clamped) {
-      // Small directional arrow pointing toward the real peer position.
-      const cx = bx + W / 2;
-      const cy = by + H / 2;
-      const dx = sx - cx;
-      const dy = sy - cy;
-      const len = Math.hypot(dx, dy) || 1;
-      const ax = cx + (dx / len) * (W / 2 + 8);
-      const ay = cy + (dy / len) * (H / 2 + 8);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath();
-      ctx.arc(ax, ay, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.restore();
   }
 }

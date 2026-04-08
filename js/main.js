@@ -412,6 +412,8 @@ function syncTouchZones() {
     // steal steering taps on mobile.
     touchZonesEl.classList.toggle('chat-inset', show);
   }
+  const topRight = document.getElementById('top-right');
+  if (topRight) topRight.classList.toggle('spectating-hidden', !!game.spectating);
 }
 
 // Multiplayer lobby modal wiring.

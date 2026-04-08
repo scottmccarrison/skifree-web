@@ -98,6 +98,9 @@ export function createGame(seed) {
     // Spectator chat bubbles: one-per-peer, replace on new message.
     // Shape: [{ peerId, presetId, expiresAt }]
     chatBubbles: [],
+    // Per-frame map of peerId -> { x, y, rowH } stashed by the roster draw
+    // so chat bubbles can anchor to roster rows instead of world coords.
+    _rosterRowPositions: new Map(),
   };
 }
 
