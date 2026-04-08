@@ -105,6 +105,18 @@ export function render(ctx, viewport, game) {
     const v = Math.max(150, 244 - stage * 24);
     bg = `rgb(${v}, ${v + 4}, ${v + 8})`;
   }
+  // Scene background tint: additive RGB offset on top of the banded bg.
+  // Skipped when inverted so night mode stays pure white (the invert pass
+  // would otherwise shift the inverted color).
+  if (!inverted && game.scene && game.scene.bgTint) {
+    const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (m) {
+      const r = Math.max(0, Math.min(255, parseInt(m[1], 10) + game.scene.bgTint[0]));
+      const g = Math.max(0, Math.min(255, parseInt(m[2], 10) + game.scene.bgTint[1]));
+      const b = Math.max(0, Math.min(255, parseInt(m[3], 10) + game.scene.bgTint[2]));
+      bg = `rgb(${r}, ${g}, ${b})`;
+    }
+  }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
@@ -139,6 +151,7 @@ export function render(ctx, viewport, game) {
   const camY = cameraSrc.y - viewport.h / 3;
 
   // Draw obstacles in view.
+  const palette = game.scene?.palette;
   for (const o of world.obstacles) {
     const sx = o.x - camX;
     const sy = o.y - camY;
@@ -146,7 +159,7 @@ export function render(ctx, viewport, game) {
     if (sy < -60 || sy > viewport.h + 60) continue;
     ctx.save();
     ctx.translate(sx, sy);
-    SPRITE_FNS[o.type.kind](ctx, score);
+    SPRITE_FNS[o.type.kind](ctx, score, palette);
     ctx.restore();
   }
 
