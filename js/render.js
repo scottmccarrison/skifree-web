@@ -31,7 +31,10 @@ function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha, cosmetic
   sctx.save();
   sctx.globalCompositeOperation = 'source-atop';
   sctx.fillStyle = color;
-  sctx.globalAlpha = 0.5;
+  // Lowered from 0.5 -> 0.35 in v0.4 phase 2 so cosmetic colors read
+  // through the team tint (e.g. white dunce cap on a blue-tinted skier
+  // stays mostly white instead of washing to half-blue).
+  sctx.globalAlpha = 0.35;
   sctx.fillRect(0, 0, sc.width, sc.height);
   sctx.restore();
   ctx.save();
@@ -199,12 +202,15 @@ export function render(ctx, viewport, game) {
   }
 
   // Remote skiers (multiplayer): tinted translucent overlay per peer.
+  // v0.4 phase 2: each remote also broadcasts their equipped cosmetic so
+  // it renders on the tinted sprite.
   if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
     for (const remote of game.remotes.values()) {
       const lr = lerpRemote(remote);
       const color = colorForIndex(remote.color);
       const alpha = remote.alive ? 0.55 : 0.25;
-      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha);
+      const remoteCos = remote.equipped ? COSMETICS[remote.equipped] : null;
+      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha, remoteCos);
     }
   }
 

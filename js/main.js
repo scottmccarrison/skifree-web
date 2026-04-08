@@ -702,6 +702,7 @@ window.startMultiplayerGame = function(seed, session) {
       state: 'straight',
       score: 0,
       speedMult: 1,
+      equipped: null,  // populated by incoming state messages
       alive: true,
       prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
     });
@@ -722,7 +723,7 @@ window.startMultiplayerGame = function(seed, session) {
       const meta = (session.roster || []).find(p => p.id === e.id) || {};
       r = {
         id: e.id, name: meta.name || `anon${e.id}`, color: meta.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       };
       game.remotes.set(e.id, r);
@@ -740,6 +741,9 @@ window.startMultiplayerGame = function(seed, session) {
     if (e.state) r.state = e.state;
     if (typeof e.score === 'number') r.score = e.score;
     if (typeof e.speedMult === 'number') r.speedMult = e.speedMult;
+    // v0.4 phase 2: equipped cosmetic id (string), null (cleared), or
+    // skip if absent/wrong-type (older client compat).
+    if (typeof e.equipped === 'string' || e.equipped === null) r.equipped = e.equipped;
     r.lastT = performance.now() / 1000;
     // Non-host: yeti rides along on the host's broadcast.
     if (!game.isHost && e.yeti) {
@@ -769,7 +773,7 @@ window.startMultiplayerGame = function(seed, session) {
     if (!game.remotes.has(e.id)) {
       game.remotes.set(e.id, {
         id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       });
     }

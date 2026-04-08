@@ -250,6 +250,9 @@ export function updateGame(game, input, viewport, dt) {
           state: game.player.state,
           score: game.score,
           speedMult: game.speedMult,
+          // v0.4 phase 2: broadcast equipped cosmetic so peers render it
+          // on this player's tinted skier. Null = nothing equipped.
+          equipped: game.profile?.equipped || null,
           seq: game.seq++,
         };
         if (game.isHost) {
