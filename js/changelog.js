@@ -7,9 +7,9 @@ export const CHANGELOG = [
   {
     version: 'v0.4 - cosmetics',
     items: [
+      'NEW: 4 visual themes - each run is randomly pine, birch, dusk, or volcanic',
+      'NEW: spectator chat - tap a preset to talk while watching others race',
       'NEW: 30 unlockable cosmetics tied to silly achievements',
-      'NEW: wardrobe button to view your collection',
-      'NEW: locked items show as mystery silhouettes - good luck',
       'NEW: achievement toasts pop up when you unlock something',
     ],
   },
