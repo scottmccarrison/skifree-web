@@ -51,6 +51,57 @@ html, body {
   pointer-events: none;
 }
 
+/* When the spectator chat bar is visible, lift the bottom of the touch
+   zones so the chat row doesn't steal steering taps on mobile. */
+#touch-zones.chat-inset {
+  bottom: 72px;
+  inset: 0 0 72px 0;
+}
+
+.chat-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  z-index: 11;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  pointer-events: none;
+}
+
+.chat-bar[hidden] { display: none; }
+
+.chat-bar .chat-btn {
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 22px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  transition: opacity 0.15s ease, transform 0.08s ease;
+}
+
+.chat-bar .chat-btn:active {
+  transform: scale(0.94);
+}
+
+.chat-bar .chat-btn:disabled {
+  cursor: default;
+}
+
 #top-right {
   position: fixed;
   z-index: 10;

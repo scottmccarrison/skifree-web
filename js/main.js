@@ -1,5 +1,6 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle, enqueueChatBubble, clearChatBubblesForPeer } from './game.js';
+import { CHAT_PRESETS } from './chatPresets.js';
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
@@ -341,6 +342,57 @@ if (clModal) clModal.addEventListener('click', (e) => { if (e.target === clModal
 // on the wrapper based on game state.
 const touchZonesEl = document.getElementById('touch-zones');
 const titleBtnEl = document.getElementById('title-button');
+const chatBarEl = document.getElementById('chat-bar');
+
+// Mount preset buttons once. Click handlers gate on session + cooldown and
+// optimistically self-echo so the sender sees their own bubble immediately.
+let chatCooldownUntil = 0;
+function mountChatBar() {
+  if (!chatBarEl || chatBarEl.dataset.mounted === '1') return;
+  chatBarEl.dataset.mounted = '1';
+  for (const preset of CHAT_PRESETS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-btn';
+    btn.title = preset.text;
+    btn.textContent = preset.emoji;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = performance.now();
+      if (now < chatCooldownUntil) return;
+      if (!mpSession || mpSession.id == null) return;
+      try { mpSession.sendChat(preset.id); } catch {}
+      // Optimistic self-echo: render our own bubble immediately.
+      enqueueChatBubble(game, mpSession.id, preset.id);
+      chatCooldownUntil = now + 1000;
+      // Grey out all buttons for 1s to mirror the worker rate limit.
+      for (const b of chatBarEl.querySelectorAll('.chat-btn')) {
+        b.disabled = true;
+        b.style.opacity = '0.5';
+      }
+      setTimeout(() => {
+        for (const b of chatBarEl.querySelectorAll('.chat-btn')) {
+          b.disabled = false;
+          b.style.opacity = '';
+        }
+      }, 1000);
+    });
+    chatBarEl.appendChild(btn);
+  }
+}
+mountChatBar();
+
+function isMpModalOpen() {
+  const m = document.getElementById('mp-modal');
+  return !!(m && !m.classList.contains('hidden'));
+}
+
+function shouldShowChatBar() {
+  if (!game || game.mode !== 'mp') return false;
+  if (!mpSession || mpSession.id == null) return false;
+  return !!(game.spectating || isMpModalOpen() || game.state === 'gameover');
+}
+
 function syncTouchZones() {
   if (!touchZonesEl) return;
   touchZonesEl.classList.toggle('disabled', game.state !== 'playing');
@@ -350,6 +402,15 @@ function syncTouchZones() {
   if (titleBtnEl) {
     const showBtn = (game.state === 'playing' || game.state === 'paused');
     titleBtnEl.style.display = showBtn ? '' : 'none';
+  }
+  // Derive chat bar visibility per-frame. Handles peerLeft drop-to-solo,
+  // host disconnect reset, reconnect, rematch lobby, pre-welcome gaps.
+  if (chatBarEl) {
+    const show = shouldShowChatBar();
+    chatBarEl.hidden = !show;
+    // Shrink the touch zones' bottom inset so the chat bar row doesn't
+    // steal steering taps on mobile.
+    touchZonesEl.classList.toggle('chat-inset', show);
   }
 }
 
@@ -716,6 +777,10 @@ window.startMultiplayerGame = function(seed, session) {
   if (session.__gameplayWired) return;
   session.__gameplayWired = true;
 
+  session.on('chat', ({ from, presetId }) => {
+    enqueueChatBubble(game, from, presetId);
+  });
+
   session.on('state', e => {
     if (typeof e.id !== 'number') return;
     let r = game.remotes.get(e.id);
@@ -781,6 +846,7 @@ window.startMultiplayerGame = function(seed, session) {
   session.on('peerLeft', e => {
     if (e && typeof e.id === 'number') {
       game.remotes.delete(e.id);
+      clearChatBubblesForPeer(game, e.id);
     }
     // Host disconnect = session ends for joiners.
     if (e && e.wasHost) {
