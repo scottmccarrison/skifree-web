@@ -69,9 +69,9 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'speed_demon', name: 'Speed Demon',
-    description: 'Reach top speed without crashing.',
+    description: 'Survive 90 seconds in a single run.',
     unlocks: 'racing_stripes', when: 'frame',
-    test: (g) => g.elapsed >= 90 && !g.run.crashedAtLeastOnce,
+    test: (g) => g.elapsed >= 90,
   },
   {
     id: 'yeti_survivor', name: 'Yeti Survivor',
@@ -127,8 +127,12 @@ export const ACHIEVEMENTS = [
     unlocks: 'hawaiian_shirt', when: 'startRun',
     test: (g, p) => {
       if (!p.stats.lastRunDate) return false;
+      // Parse 'YYYY-MM-DD' as LOCAL components, not UTC. The naive
+      // new Date('YYYY-MM-DD') parses as UTC midnight which off-by-ones
+      // the comparison for any timezone west of UTC.
+      const [ly, lm, ld] = p.stats.lastRunDate.split('-').map(Number);
+      const last = new Date(ly, lm - 1, ld);
       const today = new Date(); today.setHours(0,0,0,0);
-      const last = new Date(p.stats.lastRunDate); last.setHours(0,0,0,0);
       return (today - last) >= 24*60*60*1000;
     },
   },

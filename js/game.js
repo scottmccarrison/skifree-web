@@ -53,7 +53,6 @@ function createRun() {
     turnedEver: false,
     yetiVisibleSeconds: 0,
     maxAbsX: 0,
-    crashedAtLeastOnce: false,  // for Speed Demon
   };
 }
 
@@ -191,7 +190,6 @@ export function updateGame(game, input, viewport, dt) {
       } else if (hit.type.deadly && !isAirborne(game.player) && game.player.crashTimer <= 0 && !game.spectating) {
         captureCrashSnapshot(game);
         crashPlayer(game.player);
-        game.run.crashedAtLeastOnce = true;
         endRun(game, hit.type.kind);  // 'treeLarge'|'treeSmall'|'rock'|'stump'
         return;
       }
@@ -206,7 +204,6 @@ export function updateGame(game, input, viewport, dt) {
     if (!game.spectating && checkCritterCollision(game.critters, game.player)) {
       captureCrashSnapshot(game);
       crashPlayer(game.player);
-      game.run.crashedAtLeastOnce = true;
       endRun(game, 'squirrel');
       return;
     }
@@ -227,7 +224,6 @@ export function updateGame(game, input, viewport, dt) {
         : (typeof target.speedMult === 'number' ? target.speedMult : 1);
       const eaten = updateYeti(game.yeti, targetForYeti, dt, difficulty, targetSpeedMult);
       if (eaten && !game.spectating && target === game.player) {
-        game.run.crashedAtLeastOnce = true;
         endRun(game, 'yeti');
         return;
       }
@@ -238,7 +234,6 @@ export function updateGame(game, input, viewport, dt) {
       // Still run an identical collision check locally so deaths are responsive.
       if (!game.spectating && checkYetiCollision(game.yeti, game.player)) {
         crashPlayer(game.player);
-        game.run.crashedAtLeastOnce = true;
         endRun(game, 'yeti');
         return;
       }

@@ -83,8 +83,10 @@ function openFeedback() {
     game.state = 'paused';
     feedbackPausedRun = true;
   }
-  // v0.4: count pauses for The Yetis Are Watching achievement.
-  if (game && game.run) game.run.pauses += 1;
+  // v0.4: count pauses for The Yetis Are Watching achievement. Solo only -
+  // MP doesn't actually pause when feedback opens, so counting MP feedback
+  // opens would falsely award the achievement to multiplayer players.
+  if (game && game.run && game.mode !== 'mp') game.run.pauses += 1;
   fbStatus.textContent = '';
   fbText.value = '';
   fbSend.disabled = false;
