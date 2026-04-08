@@ -119,6 +119,9 @@ export function createSession() {
         case 'kicked':
           emit('kicked', data);
           break;
+        case 'chat':
+          emit('chat', data);
+          break;
       }
     });
     ws.addEventListener('error', e => emit('error', e));
@@ -155,6 +158,11 @@ export function createSession() {
     },
     sendDied() {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'died' }));
+    },
+    sendChat(presetId) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'chat', presetId }));
+      }
     },
     sendKick(targetId) {
       if (ws && ws.readyState === WebSocket.OPEN) {

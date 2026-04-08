@@ -173,6 +173,19 @@ export class Room {
         this.broadcastExcept(meta.id, payload);
         break;
       }
+      case 'chat': {
+        if (!Number.isInteger(data.presetId)) break;
+        const presetId = data.presetId;
+        if (presetId < 1 || presetId > 8) break;
+        const now = Date.now();
+        // Rate limit state lives in the serialized attachment so it survives
+        // hibernation - transient JS props on `ws` get wiped between messages.
+        if (now - (meta.lastChatAt || 0) < 1000) break; // 1 msg/sec/client
+        meta.lastChatAt = now;
+        ws.serializeAttachment(meta);
+        this.broadcast({ type: 'chat', from: meta.id, presetId });
+        break;
+      }
       default:
         break;
     }

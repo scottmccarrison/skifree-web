@@ -95,6 +95,9 @@ export function createGame(seed) {
     profile: loadProfile(),
     run: createRun(),
     toasts: { active: null, queue: [] },  // FIFO toast queue, one visible at a time
+    // Spectator chat bubbles: one-per-peer, replace on new message.
+    // Shape: [{ peerId, presetId, expiresAt }]
+    chatBubbles: [],
   };
 }
 
@@ -122,6 +125,7 @@ export function updateGame(game, input, viewport, dt) {
   // the active toast expires. Runs in every state so toasts can finish
   // playing on the gameover screen.
   tickToasts(game);
+  tickChatBubbles(game);
 
   if (game.state === 'title') {
     if (input.restart || input.left || input.right || input.down) {
@@ -488,6 +492,43 @@ function enqueueAchievementToasts(game, newly) {
       cosmeticId,
     });
   }
+}
+
+// ---- Spectator chat bubbles ----
+
+const CHAT_BUBBLE_MS = 3500;
+
+// Queue a chat bubble for a peer (or the local player via self-echo).
+// Dedupes per peer: a new bubble replaces any existing one for the same peer.
+export function enqueueChatBubble(game, peerId, presetId) {
+  if (peerId == null) return;
+  if (!game.chatBubbles) game.chatBubbles = [];
+  const now = performance.now();
+  game.chatBubbles = game.chatBubbles.filter(b => b.peerId !== peerId);
+  game.chatBubbles.push({ peerId, presetId, expiresAt: now + CHAT_BUBBLE_MS });
+}
+
+// Drop expired bubbles, and bubbles whose peer has disconnected (so a stale
+// bubble can't render at NaN coords after peerLeft wipes the remote).
+function tickChatBubbles(game) {
+  if (!game.chatBubbles || game.chatBubbles.length === 0) return;
+  const now = performance.now();
+  const localId = game.session ? game.session.id : null;
+  game.chatBubbles = game.chatBubbles.filter(b => {
+    if (b.expiresAt <= now) return false;
+    if (localId != null && b.peerId === localId) return true;
+    if (!game.remotes) return false;
+    return game.remotes.has
+      ? game.remotes.has(b.peerId)
+      : !!game.remotes[b.peerId];
+  });
+}
+
+// Clear any bubbles tied to a peer that just left. Belt-and-suspenders on
+// top of tickChatBubbles' filter.
+export function clearChatBubblesForPeer(game, peerId) {
+  if (!game.chatBubbles) return;
+  game.chatBubbles = game.chatBubbles.filter(b => b.peerId !== peerId);
 }
 
 // Yeti Survivor needs to know if the yeti is currently visible to the

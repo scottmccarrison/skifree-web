@@ -3,6 +3,7 @@ import {
   drawPlayer, drawYeti, drawSquirrel,
 } from './sprites.js';
 import { COSMETICS } from './cosmetics.js';
+import { getPreset } from './chatPresets.js';
 
 // Legend wrapper: squirrel sprite is offset upward in its own art so it
 // reads at the same baseline as the other obstacles in the legend grid.
@@ -277,6 +278,11 @@ export function render(ctx, viewport, game) {
     drawAchievementToast(ctx, viewport, game.toasts.active);
   }
 
+  // Spectator chat bubbles (drawn after the toast so they layer on top).
+  if (game.chatBubbles && game.chatBubbles.length > 0) {
+    drawChatBubbles(ctx, viewport, game, camX, camY);
+  }
+
   // State overlays.
   if (state === 'title') {
     drawCenteredPanel(ctx, viewport, game, {
@@ -369,6 +375,104 @@ function drawAchievementToast(ctx, viewport, toast) {
 }
 function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 function easeIn(t)  { return Math.pow(t, 3); }
+
+// Spectator chat bubbles: float above the sender's avatar using the same
+// world->screen transform the remote racers use (camX/camY from cameraPos).
+// Local self-echo is special-cased because the local player is never in
+// game.remotes.
+function drawChatBubbles(ctx, viewport, game, camX, camY) {
+  const BUBBLE_MS = 3500;
+  const FADE_MS = 500;
+  const now = performance.now();
+  const localId = game.session ? game.session.id : null;
+
+  for (const bubble of game.chatBubbles) {
+    const preset = getPreset(bubble.presetId);
+    if (!preset) continue;
+
+    // Resolve world position.
+    let wx = null, wy = null;
+    if (localId != null && bubble.peerId === localId) {
+      wx = game.player.x;
+      wy = game.player.y;
+    } else if (game.remotes) {
+      const r = game.remotes.get ? game.remotes.get(bubble.peerId)
+                                 : game.remotes[bubble.peerId];
+      if (r) {
+        const lr = lerpRemote(r);
+        wx = lr.x;
+        wy = lr.y;
+      }
+    }
+    if (wx == null || !Number.isFinite(wx) || !Number.isFinite(wy)) continue;
+
+    // Fade over final 500ms.
+    const age = now - (bubble.expiresAt - BUBBLE_MS);
+    const remaining = bubble.expiresAt - now;
+    let alpha = 1;
+    if (remaining < FADE_MS) alpha = Math.max(0, remaining / FADE_MS);
+    if (age < 0 || alpha <= 0) continue;
+
+    // Measure label.
+    const label = `${preset.emoji} ${preset.text}`;
+    ctx.save();
+    ctx.font = 'bold 12px -apple-system, system-ui, sans-serif';
+    const textW = ctx.measureText(label).width;
+    const padX = 10, padY = 6;
+    const W = Math.ceil(textW + padX * 2);
+    const H = 24;
+
+    // Screen position above the sprite head (~32px up).
+    let sx = wx - camX;
+    let sy = wy - camY - 32;
+
+    // Center the bubble horizontally on the peer.
+    let bx = sx - W / 2;
+    let by = sy - H;
+
+    // Off-screen clamp with directional indicator when sender is far
+    // ahead/behind the spectated target.
+    const margin = 8;
+    let clamped = false;
+    if (bx < margin) { bx = margin; clamped = true; }
+    if (bx + W > viewport.w - margin) { bx = viewport.w - margin - W; clamped = true; }
+    if (by < margin) { by = margin; clamped = true; }
+    if (by + H > viewport.h - margin) { by = viewport.h - margin - H; clamped = true; }
+
+    ctx.globalAlpha = alpha;
+    // .fb-card palette: white bg, ink border, rounded.
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, W, H, 12);
+    else ctx.rect(bx, by, W, H);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#1a1a1a';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, bx + padX, by + H / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+
+    if (clamped) {
+      // Small directional arrow pointing toward the real peer position.
+      const cx = bx + W / 2;
+      const cy = by + H / 2;
+      const dx = sx - cx;
+      const dy = sy - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const ax = cx + (dx / len) * (W / 2 + 8);
+      const ay = cy + (dy / len) * (H / 2 + 8);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(ax, ay, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
 
 function drawSnowflakes(ctx, viewport, t, count) {
   if (viewport.w <= 0 || viewport.h <= 0) return;
