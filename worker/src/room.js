@@ -167,10 +167,16 @@ export class Room {
         }
         break;
       }
-      case 'state':
+      case 'state': {
+        const now = Date.now();
+        if (now - (meta.lastStateAt || 0) < 50) break; // 20Hz cap
+        meta.lastStateAt = now;
+        ws.serializeAttachment(meta);
+        this.broadcastExcept(meta.id, { ...data, id: meta.id });
+        break;
+      }
       case 'died': {
-        const payload = { ...data, id: meta.id };
-        this.broadcastExcept(meta.id, payload);
+        this.broadcastExcept(meta.id, { ...data, id: meta.id });
         break;
       }
       case 'chat': {
