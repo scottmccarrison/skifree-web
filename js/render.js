@@ -218,11 +218,11 @@ export function render(ctx, viewport, game) {
   // Remote skiers (multiplayer): tinted translucent overlay per peer.
   // v0.4 phase 2: each remote also broadcasts their equipped cosmetic so
   // it renders on the tinted sprite.
-  if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
+  if ((game.mode === 'mp' || game.mode === 'open') && game.remotes && game.remotes.size > 0) {
     for (const remote of game.remotes.values()) {
       const lr = lerpRemote(remote);
       const color = colorForIndex(remote.color);
-      const alpha = remote.alive ? 0.55 : 0.25;
+      const alpha = remote.alive !== false ? 0.55 : 0.25;
       const remoteCos = remote.equipped ? COSMETICS[remote.equipped] : null;
       drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha, remoteCos);
     }
@@ -324,19 +324,25 @@ export function render(ctx, viewport, game) {
       legend: true,
       restart: true,
       restartLabel: 'START',
+      restartAction: 'openHill',
       multiplayer: true,
+      multiplayerLabel: 'MULTIPLAYER',
+      multiplayerAction: 'privateHill',
     });
   } else if (state === 'gameover') {
     // In MP, the gameover screen is the multiplayer modal (opened from main.js
     // when state transitions to gameover). The canvas panel is suppressed so
     // the lobby-style roster with ready checkmarks is the only thing visible.
     if (game.mode !== 'mp') {
+      const deathLabel = game.deathPhrase || '';
       drawCenteredPanel(ctx, viewport, game, {
         title: 'GAME OVER',
         hint: game.hint,
-        lines: [`${Math.floor(score)} m`],
+        lines: [`${Math.floor(score)} m`, deathLabel],
         restart: true,
+        restartAction: 'openHill',
         multiplayer: true,
+        multiplayerAction: 'privateHill',
       });
     }
   }
@@ -518,7 +524,7 @@ function formatResetIn(ms) {
 }
 
 function drawCenteredPanel(ctx, viewport, game, panel) {
-  const { title, hint, lines, legend, restart, restartLabel, multiplayer } = panel;
+  const { title, hint, lines, legend, restart, restartLabel, restartAction, multiplayer, multiplayerLabel, multiplayerAction } = panel;
   const restartHeight = restart ? 44 : 0;
   const board = game.leaderboard;
   const tab = game.leaderboardTab || 'daily';
@@ -687,12 +693,14 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     ctx.textAlign = 'center';
   }
 
-  // Restart button: always bottom-center, fixed position regardless of gift.
+  // Action buttons: primary (SKI) on top, secondary (PRIVATE HILL) below.
   if (restart) {
     const btnW = Math.min(w - 64, 200);
     const btnH = 36;
+    const gap = multiplayer ? 8 : 0;
+    // Primary button
     const bx = cx - btnW / 2;
-    const by = cy + h/2 - 22 - btnH;
+    const by = cy + h/2 - 22 - btnH - (multiplayer ? btnH + gap : 0);
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 8);
@@ -706,31 +714,30 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
     ctx.textBaseline = 'alphabetic';
     hitRegions.push({
       x: bx, y: by, w: btnW, h: btnH,
-      action: 'restart', data: null,
+      action: restartAction || 'restart', data: null,
     });
 
+    // Secondary button below - same size as primary, outlined style
     if (multiplayer) {
-      const mpW = btnW;
-      const mpH = 28;
-      const mpX = cx - mpW / 2;
-      const mpY = by - mpH - 8;
+      const mpX = cx - btnW / 2;
+      const mpY = by + btnH + gap;
       ctx.fillStyle = '#fff';
       ctx.strokeStyle = '#1a1a1a';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(mpX, mpY, mpW, mpH, 6);
-      else ctx.rect(mpX, mpY, mpW, mpH);
+      if (ctx.roundRect) ctx.roundRect(mpX, mpY, btnW, btnH, 8);
+      else ctx.rect(mpX, mpY, btnW, btnH);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = '#1a1a1a';
-      ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+      ctx.font = 'bold 16px -apple-system, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('MULTIPLAYER', cx, mpY + mpH / 2 + 1);
+      ctx.fillText(multiplayerLabel || 'MULTIPLAYER', cx, mpY + btnH / 2 + 1);
       ctx.textBaseline = 'alphabetic';
       hitRegions.push({
-        x: mpX, y: mpY, w: mpW, h: mpH,
-        action: 'multiplayer', data: null,
+        x: mpX, y: mpY, w: btnW, h: btnH,
+        action: multiplayerAction || 'multiplayer', data: null,
       });
     }
   }
