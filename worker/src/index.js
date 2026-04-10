@@ -9,7 +9,24 @@
 export { Room } from './room.js';
 
 const MAX_NAME_LEN = 16;
-const MAX_SCORE = 10_000_000;
+const MAX_SCORE = 100_000;
+
+// Per-IP rate limiter using D1 for persistence across isolates.
+async function rateLimit(db, ip, bucket, maxHits, windowMs) {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+  const key = `${bucket}:${ip}`;
+  // Count recent hits
+  const row = await db.prepare(
+    `SELECT COUNT(*) as cnt FROM rate_limits WHERE key = ? AND ts > ?`
+  ).bind(key, cutoff).first();
+  if (row && row.cnt >= maxHits) return false;
+  // Record this hit
+  await db.prepare(
+    `INSERT INTO rate_limits (key, ts) VALUES (?, ?)`
+  ).bind(key, now).run();
+  return true;
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -32,9 +49,17 @@ export default {
       return getLeaderboardV2(env);
     }
     if (path === '/api/score' && request.method === 'POST') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (!await rateLimit(env.DB, ip, 'score', 6, 60_000)) {
+        return json({ error: 'too many scores, slow down' }, 429);
+      }
       return postScore(request, env);
     }
     if (path === '/api/feedback' && request.method === 'POST') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (!await rateLimit(env.DB, ip, 'feedback', 2, 3600_000)) {
+        return json({ error: 'feedback rate limited, try again later' }, 429);
+      }
       return postFeedback(request, env);
     }
 
@@ -175,8 +200,7 @@ async function postFeedback(request, env) {
   );
 
   if (!r.ok) {
-    const text = await r.text();
-    return json({ error: 'github error', status: r.status, detail: text.slice(0, 500) }, 502);
+    return json({ error: 'could not submit feedback, try again later' }, 502);
   }
   const data = await r.json();
   return json({ ok: true, url: data.html_url });
