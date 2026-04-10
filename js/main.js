@@ -5,7 +5,7 @@ import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
 import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
-import { createSession } from './net.js';
+import { createSession, createOpenHillSession } from './net.js';
 import { colorForIndex } from './colors.js';
 import { drawPlayer } from './sprites.js';
 import { COSMETICS, CATALOG_ORDER } from './cosmetics.js';
@@ -80,14 +80,13 @@ let feedbackPausedRun = false;
 function clearFeedbackPause() { feedbackPausedRun = false; }
 
 function openFeedback() {
-  if (game && game.mode !== 'mp' && game.state === 'playing') {
+  if (game && game.mode !== 'mp' && game.mode !== 'open' && game.state === 'playing') {
     game.state = 'paused';
     feedbackPausedRun = true;
   }
   // v0.4: count pauses for The Yetis Are Watching achievement. Solo only -
-  // MP doesn't actually pause when feedback opens, so counting MP feedback
-  // opens would falsely award the achievement to multiplayer players.
-  if (game && game.run && game.mode !== 'mp') game.run.pauses += 1;
+  // MP/Open don't actually pause when feedback opens.
+  if (game && game.run && game.mode !== 'mp' && game.mode !== 'open') game.run.pauses += 1;
   fbStatus.textContent = '';
   fbText.value = '';
   fbSend.disabled = false;
@@ -145,7 +144,7 @@ const cosProgressText = document.getElementById('cos-progress-text');
 const wardrobeBtn = document.getElementById('wardrobe-btn');
 
 function openWardrobe() {
-  if (game && game.mode !== 'mp' && game.state === 'playing') {
+  if (game && game.mode !== 'mp' && game.mode !== 'open' && game.state === 'playing') {
     game.state = 'paused';
     cosmeticPausedRun = true;
   }
@@ -266,7 +265,17 @@ fbSend.addEventListener('click', async () => {
 });
 
 // SKI FREE title button - ends the run and shows the leaderboard.
+// In Open Hill mode, returns to the title screen entirely.
 document.getElementById('title-button').addEventListener('click', () => {
+  if (game.mode === 'open') {
+    closeOpenHill();
+    game = createGame();
+    game.state = 'title';
+    clearFeedbackPause();
+    clearCosmeticPause();
+    loadLeaderboard(game);
+    return;
+  }
   forceEndRun(game);
 });
 
@@ -299,8 +308,11 @@ function handleHit(r) {
     setLeaderboardTab(game, r.data);
   } else if (r.action === 'openChangelog') {
     openChangelog();
-  } else if (r.action === 'multiplayer') {
+  } else if (r.action === 'multiplayer' || r.action === 'privateHill') {
     openMpModal();
+    return;
+  } else if (r.action === 'openHill') {
+    startOpenHill();
     return;
   } else if (r.action === 'restart') {
     // Pulse the input.restart flag for one frame so updateGame's existing
@@ -518,6 +530,7 @@ function openMpRematchModal() {
 }
 
 function openMpModal() {
+  closeOpenHill();
   const modal = document.getElementById('mp-modal');
   modal.classList.remove('hidden');
   document.getElementById('mp-roster-wrap').classList.add('hidden');
@@ -564,6 +577,124 @@ function refreshReadyStatus() {
   if (r.length >= 2 && r.every(p => p.ready)) return; // 'start' will replace this
   const numReady = r.filter(p => p.ready).length;
   setMpStatus(`${numReady}/${r.length} ready`);
+}
+
+// Open Hill: connect to the shared slope and start skiing immediately.
+let openHillSession = null;
+
+function startOpenHill() {
+  // Already connected (e.g. restarting from gameover) - just start a new run
+  // with the existing session and seed.
+  if (openHillSession && !openHillSession.closed) {
+    game.mode = 'open';
+    game.session = openHillSession;
+    input.restart = true;
+    setTimeout(() => { input.restart = false; }, 80);
+    return;
+  }
+  openHillSession = createOpenHillSession();
+  wireOpenHillSession(openHillSession);
+  openHillSession.connect();
+}
+
+function wireOpenHillSession(session) {
+  let welcomeCount = 0;
+
+  session.on('welcome', (data) => {
+    welcomeCount++;
+    // First welcome: set up the game and start skiing.
+    // Subsequent welcomes (from auto-reconnect): just re-attach the session
+    // without restarting - the player might be on the gameover/title screen.
+    if (welcomeCount === 1) {
+      clearFeedbackPause();
+      clearCosmeticPause();
+      game = createGame(data.seed >>> 0);
+      game.mode = 'open';
+      game.session = session;
+      game.isHost = false;
+      game.localColor = data.color;
+      game.remotes = new Map();
+      loadLeaderboard(game);
+      // Start skiing immediately
+      input.restart = true;
+      setTimeout(() => { input.restart = false; }, 80);
+    } else {
+      // Reconnect: re-attach session and clear stale remotes. Old peer IDs
+      // are dead - those clients also reconnected with new IDs.
+      game.session = session;
+      game.localColor = data.color;
+      game.remotes = new Map();
+    }
+  });
+
+  session.on('state', (e) => {
+    if (typeof e.id !== 'number') return;
+    let r = game.remotes.get(e.id);
+    if (!r) {
+      r = {
+        id: e.id, name: `anon${e.id}`, color: 0,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1,
+        equipped: null, alive: true,
+        prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
+      };
+      game.remotes.set(e.id, r);
+    }
+    if (typeof e.seq === 'number' && e.seq < r.lastSeq) return;
+    if (typeof e.seq === 'number') r.lastSeq = e.seq;
+    if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) return;
+    r.prevX = r.x;
+    r.prevY = r.y;
+    r.prevT = r.lastT || (performance.now() / 1000);
+    r.x = e.x;
+    r.y = e.y;
+    if (e.state) r.state = e.state;
+    if (typeof e.score === 'number') r.score = e.score;
+    if (typeof e.speedMult === 'number') r.speedMult = e.speedMult;
+    if (typeof e.equipped === 'string' || e.equipped === null) r.equipped = e.equipped;
+    r.lastT = performance.now() / 1000;
+  });
+
+  session.on('respawn', (e) => {
+    if (typeof e.id !== 'number') return;
+    const r = game.remotes.get(e.id);
+    if (r) {
+      // Reset interpolation so the peer doesn't "slide" from their old position
+      r.prevX = 0; r.prevY = 0; r.prevT = 0; r.lastT = 0;
+      r.x = 0; r.y = 0;
+      r.state = 'straight';
+      r.score = 0;
+    }
+  });
+
+  session.on('peerJoined', (e) => {
+    if (typeof e.id !== 'number') return;
+    if (!game.remotes.has(e.id)) {
+      game.remotes.set(e.id, {
+        id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1,
+        equipped: null, alive: true,
+        prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
+      });
+    }
+  });
+
+  session.on('peerLeft', (e) => {
+    if (e && typeof e.id === 'number') {
+      game.remotes.delete(e.id);
+    }
+  });
+
+  session.on('close', () => {
+    // Auto-reconnect is handled by the session itself
+  });
+}
+
+// Clean up open hill session when switching modes
+function closeOpenHill() {
+  if (openHillSession) {
+    openHillSession.close();
+    openHillSession = null;
+  }
 }
 
 async function startHost() {
@@ -890,6 +1021,19 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+
+  // Intercept title-screen key presses: route to Open Hill instead of solo.
+  // The button handler (handleHit -> 'openHill') also calls startOpenHill,
+  // so both keyboard and tap land in the same flow.
+  if (game.state === 'title' && game.mode !== 'open' && (input.restart || input.left || input.right || input.down)) {
+    // Consume the input so updateGame doesn't start a solo run
+    input.restart = false;
+    input.left = false;
+    input.right = false;
+    input.down = false;
+    startOpenHill();
+  }
+
   updateGame(game, input, viewport, dt);
   render(ctx, viewport, game);
   syncTouchZones();

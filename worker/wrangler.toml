@@ -29,6 +29,14 @@ database_id = "cfefb367-2dcd-4512-9bd6-f38c2db16424"
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "OPEN_HILL"
+class_name = "OpenHill"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["OpenHill"]

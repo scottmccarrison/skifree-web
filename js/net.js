@@ -17,6 +17,101 @@
 //   session.sendDied();
 //   session.close();
 
+// Open Hill session: auto-connects to the shared slope, no room code needed.
+// Simplified protocol: no ready/start/died/chat, just state + respawn.
+export function createOpenHillSession() {
+  const listeners = {};
+  let ws = null;
+  let id = null;
+  let color = 0;
+  let seed = null;
+  let closed = false;
+  let reconnectTimer = null;
+  let reconnectDelay = 1000;
+
+  function emit(event, payload) {
+    (listeners[event] || []).forEach(fn => { try { fn(payload); } catch (e) { console.error(e); } });
+  }
+
+  function urlPrefix() {
+    const m = location.pathname.match(/^\/[^/]+/);
+    return m ? m[0] : '';
+  }
+
+  function buildWsUrl() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}${urlPrefix()}/api/hill`;
+  }
+
+  function connect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    closed = false;
+    ws = new WebSocket(buildWsUrl());
+    ws.addEventListener('open', () => {
+      reconnectDelay = 1000; // reset backoff on success
+      const nameEl = document.getElementById('name-input');
+      const name = nameEl && nameEl.value ? nameEl.value.trim().slice(0, 16) : '';
+      ws.send(JSON.stringify({ type: 'hello', name }));
+    });
+    ws.addEventListener('message', e => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      switch (data.type) {
+        case 'welcome':
+          id = data.id;
+          if (typeof data.color === 'number') color = data.color;
+          seed = data.seed;
+          emit('welcome', data);
+          break;
+        case 'state':
+          emit('state', data);
+          break;
+        case 'respawn':
+          emit('respawn', data);
+          break;
+        case 'peerJoined':
+          emit('peerJoined', data);
+          break;
+        case 'peerLeft':
+          emit('peerLeft', data);
+          break;
+      }
+    });
+    ws.addEventListener('error', () => {});
+    ws.addEventListener('close', () => {
+      closed = true;
+      emit('close', {});
+      // Auto-reconnect with exponential backoff
+      reconnectTimer = setTimeout(() => {
+        reconnectDelay = Math.min(reconnectDelay * 2, 16000);
+        connect();
+      }, reconnectDelay);
+    });
+  }
+
+  return {
+    on(event, fn) {
+      (listeners[event] = listeners[event] || []).push(fn);
+    },
+    connect() { connect(); },
+    sendState(payload) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'state', ...payload }));
+    },
+    sendRespawn() {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'respawn' }));
+    },
+    close() {
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      closed = true;
+      if (ws) { try { ws.close(); } catch {} }
+    },
+    get id() { return id; },
+    get color() { return color; },
+    get seed() { return seed; },
+    get closed() { return closed; },
+  };
+}
+
 export function createSession() {
   const listeners = {};
   let ws = null;

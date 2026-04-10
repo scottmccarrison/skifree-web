@@ -6,7 +6,7 @@
 //   POST /api/score            -> { name, score }
 //   *                          -> serves static assets from ../
 
-export { Room } from './room.js';
+export { Room, OpenHill } from './room.js';
 
 const MAX_NAME_LEN = 16;
 const MAX_SCORE = 100_000;
@@ -61,6 +61,14 @@ export default {
         return json({ error: 'feedback rate limited, try again later' }, 429);
       }
       return postFeedback(request, env);
+    }
+
+    // Open Hill: single shared slope. Well-known DO name = all players hit
+    // the same instance. WebSocket upgrade only.
+    if (path === '/api/hill' && request.headers.get('Upgrade') === 'websocket') {
+      const id = env.OPEN_HILL.idFromName('open-hill-v1');
+      const stub = env.OPEN_HILL.get(id);
+      return stub.fetch(request);
     }
 
     if (path === '/api/room' && request.method === 'POST') {
