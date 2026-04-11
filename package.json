@@ -4,9 +4,7 @@
   "description": "Browser homage to the classic SkiFree. Vanilla HTML/Canvas/JS, no build step.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "wrangler deploy",
-    "preview": "wrangler dev"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -20,6 +18,6 @@
   },
   "homepage": "https://github.com/scottmccarrison/skifree-web#readme",
   "devDependencies": {
-    "wrangler": "^4.81.1"
+    "wrangler": "^4.80.0"
   }
 }
