@@ -81,7 +81,7 @@ export function createGame(seed) {
     leaderboardTab: 'daily',  // 'daily' | 'alltime' | 'you'
     personalBests: getPersonalBests(),
     // Multiplayer (defaults are solo-safe)
-    mode: 'solo',          // 'solo' | 'mp' | 'open'
+    mode: 'solo',          // 'solo' | 'mp'
     session: null,
     isHost: true,
     remotes: new Map(),
@@ -105,8 +105,6 @@ export function createGame(seed) {
     // Per-frame map of peerId -> { x, y, rowH } stashed by the roster draw
     // so chat bubbles can anchor to roster rows instead of world coords.
     _rosterRowPositions: new Map(),
-    // Open Hill: cause of death shown on gameover panel
-    causeOfDeath: null,
   };
 }
 
@@ -144,7 +142,7 @@ export function updateGame(game, input, viewport, dt) {
   }
 
   // Paused (e.g. feedback modal open in solo). Freeze the sim entirely.
-  // MP and Open Hill never pause - openFeedback gates on networked modes.
+  // MP never pauses - openFeedback gates on game.mode !== 'mp'.
   if (game.state === 'paused') {
     return;
   }
@@ -221,14 +219,7 @@ export function updateGame(game, input, viewport, dt) {
       return;
     }
 
-    if (game.mode === 'open') {
-      // Open Hill: yeti is client-side only, chases local player.
-      const eaten = updateYeti(game.yeti, game.player, dt, difficulty, speedMult);
-      if (eaten && !game.spectating) {
-        endRun(game, 'yeti');
-        return;
-      }
-    } else if (game.mode !== 'mp' || game.isHost) {
+    if (game.mode !== 'mp' || game.isHost) {
       // Host (or solo): yeti chases slowest alive player
       const target = (game.mode === 'mp')
         ? (pickSlowestAlive(game) || game.player)
@@ -260,7 +251,7 @@ export function updateGame(game, input, viewport, dt) {
     }
 
     // 10Hz state broadcast (host and joiner both send their own player state).
-    if ((game.mode === 'mp' || game.mode === 'open') && game.session && !game.peerLeft) {
+    if (game.mode === 'mp' && game.session && !game.peerLeft) {
       game.lastSentT += dt;
       if (game.lastSentT >= 0.1) {
         game.lastSentT = 0;
@@ -275,9 +266,7 @@ export function updateGame(game, input, viewport, dt) {
           equipped: game.profile?.equipped || null,
           seq: game.seq++,
         };
-        // In private MP, host broadcasts yeti position. In open mode, yeti
-        // is client-only so we never broadcast it.
-        if (game.mode === 'mp' && game.isHost) {
+        if (game.isHost) {
           payload.yeti = {
             active: game.yeti.active,
             x: game.yeti.x,
@@ -383,20 +372,11 @@ function startRun(game) {
   // For solo, re-seed each run so the world AND scene rotate. MP path
   // never reaches startRun for new runs - it goes through createGame
   // with a worker-supplied seed via window.startMultiplayerGame.
-  // Open Hill keeps the server-provided seed (shared with all players)
-  // but picks a random scene per run (client-side theming).
-  if (game.mode === 'open') {
-    const runSeed = (Date.now() ^ (game.runCount * 7919)) >>> 0;
-    game.scene = pickSceneForSeed(runSeed);
-  } else if (game.mode !== 'mp') {
+  if (game.mode !== 'mp') {
     game.seed = Date.now() >>> 0;
     game.scene = pickSceneForSeed(game.seed);
   }
   game.player = createPlayer();
-  // Open Hill: spawn at random X within the narrow band
-  if (game.mode === 'open') {
-    game.player.x = (Math.random() - 0.5) * 800; // -400 to +400
-  }
   game.world = createWorld(game.seed);
   resetYeti(game.yeti);
   resetCritters(game.critters);
@@ -494,54 +474,7 @@ function endRun(game, causeOfDeath = 'unknown') {
   }
 
   game.state = 'gameover';
-  game.deathPhrase = pickDeathPhrase(causeOfDeath);
   game.hint = pickHint();
-}
-
-const DEATH_PHRASES = {
-  treeLarge: [
-    'became one with nature',
-    'found a tree the hard way',
-    'hugged a tree at 40 mph',
-    'mistook a tree for a gate',
-  ],
-  treeSmall: [
-    'taken out by a sapling',
-    'didn\'t see that one',
-    'that tree came out of nowhere',
-    'outsmarted by a shrub',
-  ],
-  rock: [
-    'discovered a boulder',
-    'geology lesson: rocks are hard',
-    'the mountain fought back',
-    'met an immovable object',
-  ],
-  stump: [
-    'stumped',
-    'tripped on a stump like a cartoon',
-    'the tiniest obstacle wins again',
-    'didn\'t look down',
-  ],
-  squirrel: [
-    'taken out by a squirrel',
-    'lost a fight with a rodent',
-    'squirrel 1, skier 0',
-    'that squirrel had places to be',
-  ],
-  yeti: [
-    'the yeti sends its regards',
-    'couldn\'t outrun the inevitable',
-    'yeti snack',
-    'should have gone faster',
-  ],
-  forced: ['quit'],
-};
-
-function pickDeathPhrase(cause) {
-  const phrases = DEATH_PHRASES[cause];
-  if (!phrases) return cause;
-  return phrases[Math.floor(Math.random() * phrases.length)];
 }
 
 // ---- v0.4 toast & achievement helpers ----

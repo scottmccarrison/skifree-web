@@ -1,16 +1,9 @@
 // Changelog entries shown in the feedback modal. Newest first.
 // LATEST_VERSION is compared against localStorage 'skifree.changelogSeen'
 // to pulse the ? button when there's something new to look at.
-export const LATEST_VERSION = 'v0.5.0';
+export const LATEST_VERSION = 'v0.4.0';
 
 export const CHANGELOG = [
-  {
-    version: 'v0.5 - open hill',
-    items: [
-      'NEW: shared slope - other players appear on your hill in real time',
-      'NEW: silly death phrases when you crash',
-    ],
-  },
   {
     version: 'v0.4 - cosmetics',
     items: [
