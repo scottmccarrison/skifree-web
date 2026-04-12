@@ -134,8 +134,7 @@ html, body {
   background: #fff;
 }
 
-#help-btn,
-#wardrobe-btn {
+#help-btn {
   width: 32px;
   height: 32px;
   font: bold 18px -apple-system, system-ui, sans-serif;
@@ -148,8 +147,7 @@ html, body {
   touch-action: manipulation;
 }
 
-#help-btn:hover,
-#wardrobe-btn:hover {
+#help-btn:hover {
   background: #fff;
   border-color: rgba(26, 26, 26, 0.9);
 }
@@ -414,100 +412,6 @@ html, body {
 .cl-ver { font-weight: bold; margin-bottom: 4px; }
 #changelog-body ul { margin: 0 0 0 18px; padding: 0; }
 #changelog-body li { margin: 2px 0; }
-
-/* v0.4: cosmetic catalog modal. Reuses the .fb-card overlay base. */
-#cosmetic-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-#cosmetic-modal.hidden { display: none; }
-.cosmetic-card { max-width: 360px; width: 90vw; }
-.cos-progress {
-  text-align: center;
-  font: 12px -apple-system, system-ui, sans-serif;
-  color: #555;
-  margin: 4px 0 12px;
-}
-#cos-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 4px;
-}
-.cos-cell {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 2px solid rgba(26,26,26,0.25);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.7);
-  cursor: pointer;
-  min-height: 64px;
-}
-.cos-cell.locked {
-  cursor: default;
-}
-.cos-cell.locked canvas {
-  filter: grayscale(1) brightness(0.7);
-  opacity: 0.6;
-}
-.cos-cell.equipped {
-  border-color: #1a1a1a;
-  background: #ffd400;
-}
-.cos-preview {
-  flex: 0 0 56px;
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cos-preview canvas { display: block; }
-.cos-info {
-  flex: 1;
-  min-width: 0;
-}
-.cos-info-name {
-  font: bold 13px -apple-system, system-ui, sans-serif;
-  color: #1a1a1a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cos-info-ach {
-  font: 11px -apple-system, system-ui, sans-serif;
-  color: #555;
-  margin-top: 2px;
-}
-.cos-info-desc {
-  font: italic 10px -apple-system, system-ui, sans-serif;
-  color: #777;
-  margin-top: 1px;
-}
-.cos-cell.locked .cos-info-name {
-  color: #999;
-  font-style: italic;
-}
-.cos-cell.locked .cos-info-ach {
-  color: #aaa;
-}
-.cos-equipped-tag {
-  flex: 0 0 auto;
-  font: bold 10px -apple-system, system-ui, sans-serif;
-  color: #1a1a1a;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
 
 /* iPhone-class narrow screens: shrink the initials input so the SKI FREE
    button (when visible during a run) doesn't crash into it. */

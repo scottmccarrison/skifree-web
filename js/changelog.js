@@ -5,12 +5,9 @@ export const LATEST_VERSION = 'v0.4.0';
 
 export const CHANGELOG = [
   {
-    version: 'v0.4 - cosmetics',
+    version: 'v0.4',
     items: [
-      'NEW: 4 visual themes - each run is randomly pine, birch, dusk, or volcanic',
       'NEW: spectator chat - tap a preset to talk while watching others race',
-      'NEW: 30 unlockable cosmetics tied to silly achievements',
-      'NEW: achievement toasts pop up when you unlock something',
     ],
   },
   {

@@ -5,8 +5,6 @@ import { createCritters, resetCritters, updateCritters, checkCritterCollision } 
 import { fetchLeaderboard, submitScore, getStoredName, recordPersonalBest, getPersonalBests } from './leaderboard.js';
 import { captureCrashSnapshot } from './diagnostics.js';
 import { loadProfile, bumpStartRun, recordRunResult } from './profile.js';
-import { checkAchievements } from './achievements.js';
-import { pickSceneForSeed } from './scenes.js';
 
 const HIGH_SCORE_KEY = 'skifree.highScore';
 const DEATH_COUNT_KEY = 'skifree.deathCount';
@@ -62,9 +60,6 @@ export function createGame(seed) {
   return {
     state: 'title', // 'title' | 'playing' | 'paused' | 'gameover'
     seed: gameSeed,
-    // Visual scene (palette + bg tint) derived deterministically from the
-    // seed so MP clients agree without any protocol change.
-    scene: pickSceneForSeed(gameSeed),
     player: createPlayer(),
     world: createWorld(gameSeed),
     yeti: createYeti(gameSeed),
@@ -95,10 +90,8 @@ export function createGame(seed) {
     scoreSubmitted: false,
     rematchPending: false,
     rematchStatus: '',
-    // v0.4: cosmetics + achievements. Profile is the persistent player record.
     profile: loadProfile(),
     run: createRun(),
-    toasts: { active: null, queue: [] },  // FIFO toast queue, one visible at a time
     // Spectator chat bubbles: one-per-peer, replace on new message.
     // Shape: [{ peerId, presetId, expiresAt }]
     chatBubbles: [],
@@ -128,10 +121,6 @@ export function updateGame(game, input, viewport, dt) {
     ? 'tap ◀ ▼ ▶ to ski - tap to start'
     : 'left/right to steer - space to start';
 
-  // Tick the toast queue. Strict FIFO: one visible at a time, advance when
-  // the active toast expires. Runs in every state so toasts can finish
-  // playing on the gameover screen.
-  tickToasts(game);
   tickChatBubbles(game);
 
   if (game.state === 'title') {
@@ -167,8 +156,6 @@ export function updateGame(game, input, viewport, dt) {
     if (game.yeti.active && isYetiOnScreen(game, viewport)) {
       game.run.yetiVisibleSeconds += dt;
     }
-    // Frame-phase achievements (score milestones, single-run counters).
-    enqueueAchievementToasts(game, checkAchievements('frame', game, game.profile));
 
     // Single source of truth for the camera/world target. render.js reads
     // this so it never disagrees with what world generation is following.
@@ -261,9 +248,6 @@ export function updateGame(game, input, viewport, dt) {
           state: game.player.state,
           score: game.score,
           speedMult: game.speedMult,
-          // v0.4 phase 2: broadcast equipped cosmetic so peers render it
-          // on this player's tinted skier. Null = nothing equipped.
-          equipped: game.profile?.equipped || null,
           seq: game.seq++,
         };
         if (game.isHost) {
@@ -374,7 +358,6 @@ function startRun(game) {
   // with a worker-supplied seed via window.startMultiplayerGame.
   if (game.mode !== 'mp') {
     game.seed = Date.now() >>> 0;
-    game.scene = pickSceneForSeed(game.seed);
   }
   game.player = createPlayer();
   game.world = createWorld(game.seed);
@@ -386,10 +369,8 @@ function startRun(game) {
   game.startY = 0;
   game.elapsed = 0;
   game.state = 'playing';
-  // v0.4: reset per-run counters and bump profile.
   game.run = createRun();
   bumpStartRun(game.profile);
-  enqueueAchievementToasts(game, checkAchievements('startRun', game, game.profile));
 }
 
 export function forceEndRun(game) {
@@ -431,12 +412,6 @@ function finalizeScore(game) {
     submitScore(name, finalScore).then(board => {
       game.leaderboardLoading = false;
       if (board) game.leaderboard = board;
-      // Check leaderboard-phase achievements once the server response lands.
-      enqueueAchievementToasts(game, checkAchievements('leaderboard', game, game.profile, {
-        daily: board?.daily || [],
-        alltime: board?.alltime || [],
-        myName: name,
-      }));
     });
   }
 }
@@ -444,9 +419,6 @@ function finalizeScore(game) {
 function endRun(game, causeOfDeath = 'unknown') {
   if (game.spectating) return;
   if (game.state === 'gameover') return;
-  // Fire end-run achievements (Roadkill, Yeti Snack, baby_steps, etc.) BEFORE
-  // the spectator branch so MP-spectator deaths still earn the unlock.
-  enqueueAchievementToasts(game, checkAchievements('endRun', game, game.profile, { causeOfDeath }));
   // MP: notify peer of our death once, regardless of which branch we take.
   if (game.mode === 'mp' && game.session && !game.diedSent) {
     try { game.session.sendDied(); } catch {}
@@ -475,37 +447,6 @@ function endRun(game, causeOfDeath = 'unknown') {
 
   game.state = 'gameover';
   game.hint = pickHint();
-}
-
-// ---- v0.4 toast & achievement helpers ----
-
-const TOAST_DURATION_MS = 2500;
-
-// Advance the toast queue. Pops the active toast when it expires and pulls
-// the next one from the queue. Strict FIFO, one visible at a time.
-function tickToasts(game) {
-  if (!game.toasts) return;
-  const now = performance.now();
-  if (game.toasts.active && now - game.toasts.active.startedAt > TOAST_DURATION_MS) {
-    game.toasts.active = null;
-  }
-  if (!game.toasts.active && game.toasts.queue.length > 0) {
-    const next = game.toasts.queue.shift();
-    game.toasts.active = { ...next, startedAt: now };
-  }
-}
-
-// Push newly-unlocked achievements onto the toast queue. checkAchievements
-// returns an array of {achievement, cosmeticId}; we copy the bits we need
-// for rendering (name + cosmetic id) so the toast is self-contained.
-function enqueueAchievementToasts(game, newly) {
-  if (!newly || newly.length === 0) return;
-  for (const { achievement, cosmeticId } of newly) {
-    game.toasts.queue.push({
-      name: achievement.name,
-      cosmeticId,
-    });
-  }
 }
 
 // ---- Spectator chat bubbles ----

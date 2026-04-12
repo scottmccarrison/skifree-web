@@ -7,16 +7,6 @@ import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 import { createSession } from './net.js';
 import { colorForIndex } from './colors.js';
-import { drawPlayer } from './sprites.js';
-import { COSMETICS, CATALOG_ORDER } from './cosmetics.js';
-import { ACHIEVEMENTS } from './achievements.js';
-import { equip, unequip, isUnlocked } from './profile.js';
-
-// Reverse lookup: cosmetic id -> achievement that unlocks it. Built once at
-// module load so the wardrobe can show "earned by" info per row.
-const ACH_BY_COSMETIC = Object.fromEntries(
-  ACHIEVEMENTS.map(a => [a.unlocks, a])
-);
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -131,109 +121,6 @@ document.getElementById('help-btn').addEventListener('click', () => {
 fbCancel.addEventListener('click', closeFeedback);
 fbModal.addEventListener('click', (e) => { if (e.target === fbModal) closeFeedback(); });
 fbText.addEventListener('keydown', (e) => e.stopPropagation());
-
-// ---- v0.4: cosmetic wardrobe ----
-// Same pause-on-open contract as feedback (solo only). Different module-level
-// flag so opening one doesn't accidentally clear the other's pause state.
-let cosmeticPausedRun = false;
-function clearCosmeticPause() { cosmeticPausedRun = false; }
-
-const cosModal = document.getElementById('cosmetic-modal');
-const cosGrid = document.getElementById('cos-grid');
-const cosClose = document.getElementById('cos-close');
-const cosProgressText = document.getElementById('cos-progress-text');
-const wardrobeBtn = document.getElementById('wardrobe-btn');
-
-function openWardrobe() {
-  if (game && game.mode !== 'mp' && game.state === 'playing') {
-    game.state = 'paused';
-    cosmeticPausedRun = true;
-  }
-  renderCosmeticGrid();
-  cosModal.classList.remove('hidden');
-}
-function closeWardrobe() {
-  cosModal.classList.add('hidden');
-  if (cosmeticPausedRun && game && game.state === 'paused') {
-    game.state = 'playing';
-  }
-  cosmeticPausedRun = false;
-}
-
-function renderCosmeticGrid() {
-  if (!game || !game.profile) return;
-  cosGrid.innerHTML = '';
-  let unlockedCount = 0;
-  for (const id of CATALOG_ORDER) {
-    const cos = COSMETICS[id];
-    const ach = ACH_BY_COSMETIC[id];
-    const unlocked = isUnlocked(game.profile, id);
-    if (unlocked) unlockedCount += 1;
-    const equipped = game.profile.equipped === id;
-
-    const cell = document.createElement('div');
-    cell.className = 'cos-cell' + (unlocked ? '' : ' locked') + (equipped ? ' equipped' : '');
-
-    // Sprite preview on the left.
-    const preview = document.createElement('div');
-    preview.className = 'cos-preview';
-    const c = document.createElement('canvas');
-    c.width = 56; c.height = 56;
-    const cctx = c.getContext('2d');
-    cctx.translate(28, 38);
-    drawPlayer(cctx, 'straight', cos);
-    preview.appendChild(c);
-    cell.appendChild(preview);
-
-    // Info block: cosmetic name, achievement name, description (or all '???' if locked).
-    const info = document.createElement('div');
-    info.className = 'cos-info';
-    const nameEl = document.createElement('div');
-    nameEl.className = 'cos-info-name';
-    nameEl.textContent = unlocked ? cos.name : '???';
-    info.appendChild(nameEl);
-    if (unlocked && ach) {
-      const achNameEl = document.createElement('div');
-      achNameEl.className = 'cos-info-ach';
-      achNameEl.textContent = ach.name;
-      info.appendChild(achNameEl);
-      if (ach.description) {
-        const descEl = document.createElement('div');
-        descEl.className = 'cos-info-desc';
-        descEl.textContent = ach.description;
-        info.appendChild(descEl);
-      }
-    } else if (!unlocked) {
-      const lockedEl = document.createElement('div');
-      lockedEl.className = 'cos-info-ach';
-      lockedEl.textContent = 'Locked';
-      info.appendChild(lockedEl);
-    }
-    cell.appendChild(info);
-
-    // "EQUIPPED" tag on the right when active.
-    if (equipped) {
-      const tag = document.createElement('div');
-      tag.className = 'cos-equipped-tag';
-      tag.textContent = 'Equipped';
-      cell.appendChild(tag);
-    }
-
-    if (unlocked) {
-      cell.addEventListener('click', () => {
-        if (game.profile.equipped === id) unequip(game.profile);
-        else equip(game.profile, id);
-        renderCosmeticGrid();
-      });
-    }
-    cosGrid.appendChild(cell);
-  }
-  cosProgressText.textContent = `${unlockedCount} / ${CATALOG_ORDER.length}`;
-}
-
-wardrobeBtn.addEventListener('click', openWardrobe);
-cosClose.addEventListener('click', closeWardrobe);
-cosModal.addEventListener('click', (e) => { if (e.target === cosModal) closeWardrobe(); });
 
 fbSend.addEventListener('click', async () => {
   const message = fbText.value.trim();
@@ -719,7 +606,6 @@ document.getElementById('mp-cancel').addEventListener('click', () => {
     game.state = 'title';
     mpGameoverShown = false;
     clearFeedbackPause();
-    clearCosmeticPause();
   }
 });
 document.getElementById('mp-code-input').addEventListener('keydown', (e) => e.stopPropagation());
@@ -765,7 +651,7 @@ window.startMultiplayerGame = function(seed, session) {
       state: 'straight',
       score: 0,
       speedMult: 1,
-      equipped: null,  // populated by incoming state messages
+
       alive: true,
       prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
     });
@@ -790,7 +676,7 @@ window.startMultiplayerGame = function(seed, session) {
       const meta = (session.roster || []).find(p => p.id === e.id) || {};
       r = {
         id: e.id, name: meta.name || `anon${e.id}`, color: meta.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       };
       game.remotes.set(e.id, r);
@@ -808,9 +694,6 @@ window.startMultiplayerGame = function(seed, session) {
     if (e.state) r.state = e.state;
     if (typeof e.score === 'number') r.score = e.score;
     if (typeof e.speedMult === 'number') r.speedMult = e.speedMult;
-    // v0.4 phase 2: equipped cosmetic id (string), null (cleared), or
-    // skip if absent/wrong-type (older client compat).
-    if (typeof e.equipped === 'string' || e.equipped === null) r.equipped = e.equipped;
     r.lastT = performance.now() / 1000;
     // Non-host: yeti rides along on the host's broadcast.
     if (!game.isHost && e.yeti) {
@@ -840,7 +723,7 @@ window.startMultiplayerGame = function(seed, session) {
     if (!game.remotes.has(e.id)) {
       game.remotes.set(e.id, {
         id: e.id, name: e.name || `anon${e.id}`, color: e.color || 0,
-        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, equipped: null, alive: true,
+        x: 0, y: 0, state: 'straight', score: 0, speedMult: 1, alive: true,
         prevX: 0, prevY: 0, prevT: 0, lastT: 0, lastSeq: -1,
       });
     }
@@ -856,7 +739,6 @@ window.startMultiplayerGame = function(seed, session) {
       game = createGame();
       game.state = 'title';
       clearFeedbackPause();
-    clearCosmeticPause();
       if (typeof openMpModal === 'function') openMpModal();
       return;
     }
@@ -876,7 +758,6 @@ window.startMultiplayerGame = function(seed, session) {
     game = createGame();
     game.state = 'title';
     clearFeedbackPause();
-    clearCosmeticPause();
     if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
     if (typeof openMpModal === 'function') openMpModal();
   });
