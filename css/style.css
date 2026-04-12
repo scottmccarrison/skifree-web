@@ -419,3 +419,44 @@ html, body {
   #name-input { width: 56px; padding: 4px 6px; font-size: 13px; }
   #title-button { font-size: 16px; padding: 5px 10px; letter-spacing: 0.5px; }
 }
+
+/* Disconnect toast: brief centered notification before resetting to title. */
+.disconnect-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  padding: 16px 32px;
+  background: rgba(26, 26, 26, 0.92);
+  color: #fff;
+  font: bold 16px -apple-system, system-ui, sans-serif;
+  border-radius: 10px;
+  pointer-events: none;
+}
+.disconnect-toast[hidden] { display: none; }
+
+/* Portrait lock: show a rotate prompt on mobile landscape. Only triggers
+   on touch devices (hover: none) so desktop users aren't affected. */
+#rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--snow);
+  color: var(--ink);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font: bold 18px -apple-system, system-ui, sans-serif;
+  text-align: center;
+  padding: 24px;
+}
+#rotate-prompt .rotate-icon {
+  font-size: 48px;
+}
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  #rotate-prompt { display: flex; }
+  #game, #top-right, #title-button, #touch-zones, #chat-bar { display: none !important; }
+}

@@ -431,6 +431,14 @@ function closeMpModal() {
   if (mpSession && !mpSession.closed) { mpSession.close(); }
   mpSession = null;
 }
+function showDisconnectToast(text) {
+  const el = document.getElementById('disconnect-toast');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  setTimeout(() => { el.hidden = true; }, 1500);
+}
+
 function setMpStatus(text) {
   const el = document.getElementById('mp-status');
   if (el) el.textContent = text || '\u00a0';
@@ -732,13 +740,17 @@ window.startMultiplayerGame = function(seed, session) {
       game.remotes.delete(e.id);
       clearChatBubblesForPeer(game, e.id);
     }
-    // Host disconnect = session ends for joiners.
+    // Host disconnect = session ends for joiners. Show a brief toast
+    // before resetting so the player understands what happened.
     if (e && e.wasHost) {
       try { session.close(); } catch {}
-      game = createGame();
-      game.state = 'title';
-      clearFeedbackPause();
-      if (typeof openMpModal === 'function') openMpModal();
+      showDisconnectToast('Host disconnected');
+      setTimeout(() => {
+        game = createGame();
+        game.state = 'title';
+        clearFeedbackPause();
+        if (typeof openMpModal === 'function') openMpModal();
+      }, 1200);
       return;
     }
     // If spectating and no remotes left alive, end the run.
@@ -754,11 +766,13 @@ window.startMultiplayerGame = function(seed, session) {
   session.on('kicked', () => {
     mpKickedFlag = true;
     try { session.close(); } catch {}
-    game = createGame();
-    game.state = 'title';
-    clearFeedbackPause();
-    if (typeof setMpStatus === 'function') setMpStatus('You were removed from the room');
-    if (typeof openMpModal === 'function') openMpModal();
+    showDisconnectToast('You were kicked');
+    setTimeout(() => {
+      game = createGame();
+      game.state = 'title';
+      clearFeedbackPause();
+      if (typeof openMpModal === 'function') openMpModal();
+    }, 1200);
   });
 };
 
