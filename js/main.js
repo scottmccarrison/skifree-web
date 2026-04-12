@@ -634,7 +634,6 @@ document.addEventListener('visibilitychange', () => {
 // and wires gameplay-specific listeners onto it.
 window.startMultiplayerGame = function(seed, session) {
   clearFeedbackPause();
-  clearCosmeticPause();
   game = createGame(seed >>> 0);
   game.mode = 'mp';
   game.session = session;
