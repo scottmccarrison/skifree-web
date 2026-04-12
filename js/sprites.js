@@ -62,7 +62,7 @@ export function drawTreeSmall(ctx, score = 0) {
   }
 }
 
-export function drawMogul(ctx, score = 0) {
+export function drawMogul(ctx, _score = 0) {
   // Half-moon bump: lit top half + shaded base, reads as a 3D mound rather
   // than a flat puddle.
   ctx.fillStyle = '#f4faff';
@@ -90,7 +90,7 @@ export function drawMogul(ctx, score = 0) {
   ctx.stroke();
 }
 
-export function drawRock(ctx, score = 0) {
+export function drawRock(ctx, _score = 0) {
   ctx.fillStyle = '#7a7a7a';
   ctx.beginPath();
   ctx.moveTo(-10, 4);
@@ -105,7 +105,7 @@ export function drawRock(ctx, score = 0) {
   ctx.stroke();
 }
 
-export function drawJump(ctx, score = 0) {
+export function drawJump(ctx, _score = 0) {
   // Simple log laid across the slope.
   ctx.fillStyle = '#7a4a1f';
   ctx.fillRect(-18, -5, 36, 10);
@@ -120,7 +120,7 @@ export function drawJump(ctx, score = 0) {
   ctx.strokeRect(14, -5, 4, 10);
 }
 
-export function drawStump(ctx, score = 0) {
+export function drawStump(ctx, _score = 0) {
   ctx.fillStyle = '#8b5a2b';
   ctx.beginPath();
   ctx.ellipse(0, 0, 9, 5, 0, 0, Math.PI * 2);

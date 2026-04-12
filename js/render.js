@@ -87,7 +87,7 @@ export function render(ctx, viewport, game) {
   // Bands cycle every 6000m so the visual journey continues forever.
   const bandScore = score % 6000;
   const stage = Math.floor(bandScore / 1000);
-  const cycle = Math.floor(score / 6000);
+
   const inverted = stage >= 5;
 
   let bg;
@@ -639,27 +639,3 @@ function drawCenteredPanel(ctx, viewport, game, panel) {
 
 }
 
-function drawGiftIcon(ctx, x, y) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.fillStyle = '#cc1f1f';
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 1.2;
-  ctx.fillRect(-10, -6, 20, 14);
-  ctx.strokeRect(-10, -6, 20, 14);
-  ctx.fillStyle = '#ffd400';
-  ctx.fillRect(-2, -6, 4, 14);
-  ctx.fillRect(-10, -2, 20, 3);
-  ctx.beginPath();
-  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
-  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.beginPath();
-  ctx.ellipse(-4, -8, 3, 2, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.ellipse(4, -8, 3, 2, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
