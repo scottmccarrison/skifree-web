@@ -416,7 +416,7 @@ function finalizeScore(game) {
   }
 }
 
-function endRun(game, causeOfDeath = 'unknown') {
+function endRun(game, _causeOfDeath = 'unknown') {
   if (game.spectating) return;
   if (game.state === 'gameover') return;
   // MP: notify peer of our death once, regardless of which branch we take.

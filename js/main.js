@@ -1,9 +1,9 @@
 import { initInput, input } from './input.js';
-import { createGame, updateGame, loadLeaderboard, forceEndRun, forceGameOver, setLeaderboardTab, advanceSpectateCycle, enqueueChatBubble, clearChatBubblesForPeer } from './game.js';
+import { createGame, updateGame, loadLeaderboard, forceEndRun, setLeaderboardTab, advanceSpectateCycle, enqueueChatBubble, clearChatBubblesForPeer } from './game.js';
 import { CHAT_PRESETS } from './chatPresets.js';
 import { render, hitRegions } from './render.js';
 import { getStoredName, setStoredName } from './leaderboard.js';
-import { buildDiagnosticsMeta, logInput } from './diagnostics.js';
+import { buildDiagnosticsMeta } from './diagnostics.js';
 import { CHANGELOG, LATEST_VERSION } from './changelog.js';
 import { createSession } from './net.js';
 import { colorForIndex } from './colors.js';
@@ -145,7 +145,7 @@ fbSend.addEventListener('click', async () => {
     if (!r.ok) throw new Error('http ' + r.status);
     fbStatus.textContent = 'thanks! sent.';
     setTimeout(closeFeedback, 900);
-  } catch (e) {
+  } catch {
     fbStatus.textContent = 'failed to send - try again later';
     fbSend.disabled = false;
     fbCancel.disabled = false;
