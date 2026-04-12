@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="screen-orientation" content="portrait" />
   <meta name="theme-color" content="#e8f4ff" />
   <title>Ski Free</title>
   <link rel="stylesheet" href="css/style.css" />
@@ -63,11 +64,18 @@
     </div>
   </div>
 
+  <div id="disconnect-toast" class="disconnect-toast" hidden></div>
+
   <div id="chat-bar" class="chat-bar" hidden></div>
 
   <div id="touch-zones" aria-hidden="true">
     <div class="tzone" data-dir="left"></div>
     <div class="tzone" data-dir="right"></div>
+  </div>
+
+  <div id="rotate-prompt">
+    <div class="rotate-icon">&#x1F4F1;</div>
+    <div>Rotate your device to portrait</div>
   </div>
 
   <script type="module" src="js/main.js"></script>

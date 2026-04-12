@@ -21,10 +21,11 @@ async function rateLimit(db, ip, bucket, maxHits, windowMs) {
     `SELECT COUNT(*) as cnt FROM rate_limits WHERE key = ? AND ts > ?`
   ).bind(key, cutoff).first();
   if (row && row.cnt >= maxHits) return false;
-  // Record this hit
-  await db.prepare(
-    `INSERT INTO rate_limits (key, ts) VALUES (?, ?)`
-  ).bind(key, now).run();
+  // Record this hit and prune expired entries in one batch.
+  await db.batch([
+    db.prepare(`INSERT INTO rate_limits (key, ts) VALUES (?, ?)`).bind(key, now),
+    db.prepare(`DELETE FROM rate_limits WHERE ts < ?`).bind(cutoff),
+  ]);
   return true;
 }
 
