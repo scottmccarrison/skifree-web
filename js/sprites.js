@@ -1,220 +1,83 @@
 // Procedural sprite drawing. World units; (0,0) at sprite center.
 
-// Default palette used when a sprite function is called without an explicit
-// scene palette (legend icons, older call sites). Mirrors scenes.js `pine`
-// so themed and un-themed paths render consistently.
-const PINE_PALETTE = {
-  treeFoliageDark: '#1f5f2a',
-  treeFoliageLight: '#2a7a36',
-  treeTrunk: '#5a3a1a',
-  treeStarTop: '#ffd400',
-  logBody: '#7a4a1f',
-  logEnd: '#a36a32',
-  logOutline: '#3a2410',
-  stumpBody: '#8b5a2b',
-  stumpRing: '#3a2410',
-  rockBody: '#7a7a7a',
-  rockOutline: '#3f3f3f',
-  mogulLight: '#f4faff',
-  mogulShade: '#a8c0d4',
-  mogulOutline: '#6f8aa0',
-  easterEgg: 'lights',
-};
-
-// Easter egg helpers. Each draws a small decoration set over the tree
-// foliage area. Tree geometry is unchanged - these are purely additive
-// pixels above the tree, so hitboxes stay identical.
-function drawIciclesLarge(ctx) {
-  ctx.fillStyle = '#ffffff';
-  const tips = [
-    { x: -12, y: 12 },
-    { x: -5,  y: 14 },
-    { x:  3,  y: 14 },
-    { x:  11, y: 12 },
-  ];
-  for (const t of tips) {
-    ctx.beginPath();
-    ctx.moveTo(t.x - 1.2, t.y);
-    ctx.lineTo(t.x + 1.2, t.y);
-    ctx.lineTo(t.x, t.y + 3.5);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-function drawIciclesSmall(ctx) {
-  ctx.fillStyle = '#ffffff';
-  const tips = [
-    { x: -6, y: 7 },
-    { x:  0, y: 8 },
-    { x:  6, y: 7 },
-  ];
-  for (const t of tips) {
-    ctx.beginPath();
-    ctx.moveTo(t.x - 1, t.y);
-    ctx.lineTo(t.x + 1, t.y);
-    ctx.lineTo(t.x, t.y + 2.5);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-function drawStarsLarge(ctx) {
-  ctx.fillStyle = '#ffffff';
-  const dots = [
-    { x: -9,  y: -4 },
-    { x:  6,  y: -8 },
-    { x: -3, y: -16 },
-    { x:  9,  y:  4 },
-    { x: -11, y:  6 },
-    { x:  2,  y:  2 },
-  ];
-  for (const d of dots) {
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 0.9, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-function drawStarsSmall(ctx) {
-  ctx.fillStyle = '#ffffff';
-  const dots = [
-    { x: -5, y: -2 },
-    { x:  4, y: -4 },
-    { x:  0, y: -9 },
-    { x: -3, y:  4 },
-  ];
-  for (const d of dots) {
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 0.8, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-function drawEmbersLarge(ctx) {
-  ctx.fillStyle = '#ff7a1a';
-  const dots = [
-    { x: -9,  y: -2 },
-    { x:  7,  y: -6 },
-    { x: -3, y: -13 },
-    { x:  9,  y:  6 },
-    { x: -11, y:  8 },
-    { x:  3,  y:  3 },
-  ];
-  for (const d of dots) {
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 1.1, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-function drawEmbersSmall(ctx) {
-  ctx.fillStyle = '#ff7a1a';
-  const dots = [
-    { x: -5, y:  0 },
-    { x:  4, y: -3 },
-    { x:  0, y: -8 },
-    { x: -2, y:  5 },
-  ];
-  for (const d of dots) {
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 1.0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-export function drawTreeLarge(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
-  ctx.fillStyle = p.treeFoliageDark;
+export function drawTreeLarge(ctx, score = 0) {
+  ctx.fillStyle = '#1f5f2a';
   ctx.beginPath();
   ctx.moveTo(0, -22);
   ctx.lineTo(14, 6);
   ctx.lineTo(-14, 6);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = p.treeFoliageLight;
+  ctx.fillStyle = '#2a7a36';
   ctx.beginPath();
   ctx.moveTo(0, -10);
   ctx.lineTo(18, 14);
   ctx.lineTo(-18, 14);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = p.treeTrunk;
+  ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-2, 14, 4, 6);
-  // Themed easter eggs (>=500m).
+  // Christmas lights (>=500m).
   if (score >= 500) {
-    if (p.easterEgg === 'lights') {
-      const lights = [
-        { x: -10, y: -2,  c: '#ff3838' },
-        { x:  8,  y: -6,  c: '#ffd400' },
-        { x: -4,  y: -14, c: '#3aa0ff' },
-        { x:  10, y:  8,  c: '#39e08a' },
-        { x: -12, y: 10,  c: '#ffd400' },
-        { x:  4,  y: 4,   c: '#ff3838' },
-      ];
-      for (const l of lights) {
-        ctx.fillStyle = l.c;
-        ctx.beginPath();
-        ctx.arc(l.x, l.y, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (p.easterEgg === 'icicles') {
-      drawIciclesLarge(ctx);
-    } else if (p.easterEgg === 'stars') {
-      drawStarsLarge(ctx);
-    } else if (p.easterEgg === 'embers') {
-      drawEmbersLarge(ctx);
+    const lights = [
+      { x: -10, y: -2,  c: '#ff3838' },
+      { x:  8,  y: -6,  c: '#ffd400' },
+      { x: -4,  y: -14, c: '#3aa0ff' },
+      { x:  10, y:  8,  c: '#39e08a' },
+      { x: -12, y: 10,  c: '#ffd400' },
+      { x:  4,  y: 4,   c: '#ff3838' },
+    ];
+    for (const l of lights) {
+      ctx.fillStyle = l.c;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
   // Star on top.
-  ctx.fillStyle = p.treeStarTop;
+  ctx.fillStyle = '#ffd400';
   ctx.beginPath();
   ctx.arc(0, -23, 2, 0, Math.PI * 2);
   ctx.fill();
 }
 
-export function drawTreeSmall(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
-  ctx.fillStyle = p.treeFoliageLight;
+export function drawTreeSmall(ctx, score = 0) {
+  ctx.fillStyle = '#2a7a36';
   ctx.beginPath();
   ctx.moveTo(0, -14);
   ctx.lineTo(10, 8);
   ctx.lineTo(-10, 8);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = p.treeTrunk;
+  ctx.fillStyle = '#5a3a1a';
   ctx.fillRect(-1.5, 8, 3, 4);
-  // Themed easter eggs (>=500m), scaled down for the small tree.
+  // Christmas lights (>=500m), scaled down for the small tree.
   if (score >= 500) {
-    if (p.easterEgg === 'lights') {
-      ctx.fillStyle = '#ff3838';
-      ctx.beginPath(); ctx.arc(-5, 2, 1.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ffd400';
-      ctx.beginPath(); ctx.arc(4, 5, 1.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#3aa0ff';
-      ctx.beginPath(); ctx.arc(0, -6, 1.3, 0, Math.PI * 2); ctx.fill();
-    } else if (p.easterEgg === 'icicles') {
-      drawIciclesSmall(ctx);
-    } else if (p.easterEgg === 'stars') {
-      drawStarsSmall(ctx);
-    } else if (p.easterEgg === 'embers') {
-      drawEmbersSmall(ctx);
-    }
+    ctx.fillStyle = '#ff3838';
+    ctx.beginPath(); ctx.arc(-5, 2, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd400';
+    ctx.beginPath(); ctx.arc(4, 5, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3aa0ff';
+    ctx.beginPath(); ctx.arc(0, -6, 1.3, 0, Math.PI * 2); ctx.fill();
   }
 }
 
-export function drawMogul(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
+export function drawMogul(ctx, score = 0) {
   // Half-moon bump: lit top half + shaded base, reads as a 3D mound rather
   // than a flat puddle.
-  ctx.fillStyle = p.mogulLight;
+  ctx.fillStyle = '#f4faff';
   ctx.beginPath();
   ctx.arc(0, 2, 14, Math.PI, 2 * Math.PI);
   ctx.lineTo(-14, 2);
   ctx.closePath();
   ctx.fill();
   // Shaded base lip
-  ctx.fillStyle = p.mogulShade;
+  ctx.fillStyle = '#a8c0d4';
   ctx.beginPath();
   ctx.ellipse(0, 2, 14, 3, 0, 0, Math.PI * 2);
   ctx.fill();
   // Outline
-  ctx.strokeStyle = p.mogulOutline;
+  ctx.strokeStyle = '#6f8aa0';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(0, 2, 14, Math.PI, 2 * Math.PI);
@@ -227,9 +90,8 @@ export function drawMogul(ctx, score = 0, palette = PINE_PALETTE) {
   ctx.stroke();
 }
 
-export function drawRock(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
-  ctx.fillStyle = p.rockBody;
+export function drawRock(ctx, score = 0) {
+  ctx.fillStyle = '#7a7a7a';
   ctx.beginPath();
   ctx.moveTo(-10, 4);
   ctx.lineTo(-6, -8);
@@ -238,34 +100,32 @@ export function drawRock(ctx, score = 0, palette = PINE_PALETTE) {
   ctx.lineTo(8, 6);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = p.rockOutline;
+  ctx.strokeStyle = '#3f3f3f';
   ctx.lineWidth = 1;
   ctx.stroke();
 }
 
-export function drawJump(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
+export function drawJump(ctx, score = 0) {
   // Simple log laid across the slope.
-  ctx.fillStyle = p.logBody;
+  ctx.fillStyle = '#7a4a1f';
   ctx.fillRect(-18, -5, 36, 10);
-  ctx.strokeStyle = p.logOutline;
+  ctx.strokeStyle = '#3a2410';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(-18, -5, 36, 10);
   // End grain caps.
-  ctx.fillStyle = p.logEnd;
+  ctx.fillStyle = '#a36a32';
   ctx.fillRect(-18, -5, 4, 10);
   ctx.fillRect(14, -5, 4, 10);
   ctx.strokeRect(-18, -5, 4, 10);
   ctx.strokeRect(14, -5, 4, 10);
 }
 
-export function drawStump(ctx, score = 0, palette = PINE_PALETTE) {
-  const p = palette || PINE_PALETTE;
-  ctx.fillStyle = p.stumpBody;
+export function drawStump(ctx, score = 0) {
+  ctx.fillStyle = '#8b5a2b';
   ctx.beginPath();
   ctx.ellipse(0, 0, 9, 5, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = p.stumpRing;
+  ctx.strokeStyle = '#3a2410';
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.beginPath();
@@ -274,9 +134,7 @@ export function drawStump(ctx, score = 0, palette = PINE_PALETTE) {
 }
 
 // Player sprite. `state`: 'straight' | 'leftEasy' | 'leftHard' | 'rightEasy' | 'rightHard' | 'crashed'
-// `cosmetic`: optional resolved cosmetic object from cosmetics.js (or null).
-// Composition order: drawBehind accessory -> skis -> body+overlay -> head -> hat -> draw accessory.
-export function drawPlayer(ctx, state, cosmetic = null) {
+export function drawPlayer(ctx, state) {
   if (state === 'crashed') {
     drawCrashedPlayer(ctx);
     return;
@@ -289,29 +147,19 @@ export function drawPlayer(ctx, state, cosmetic = null) {
     rightHard: -0.7,
   }[state] ?? 0;
 
-  // Behind-the-body accessories (cape, wings) draw first so the body covers them.
-  if (cosmetic && cosmetic.type === 'accessory' && cosmetic.drawBehind) {
-    cosmetic.drawBehind(ctx);
-  }
-
-  // Skis. Cosmetic skis recolor the ski rectangles.
-  const skiColor = (cosmetic && cosmetic.type === 'skis' && cosmetic.skiColor) || '#222';
+  // Skis.
   ctx.save();
   ctx.rotate(skiAngle);
-  ctx.fillStyle = skiColor;
+  ctx.fillStyle = '#222';
   ctx.fillRect(-9, -2, 6, 18);
   ctx.fillRect(3, -2, 6, 18);
   ctx.restore();
 
-  // Body. Cosmetic jackets override the fill color and may paint a pattern overlay.
-  const bodyColor = (cosmetic && cosmetic.type === 'jacket' && cosmetic.bodyColor) || '#d33';
-  ctx.fillStyle = bodyColor;
+  // Body.
+  ctx.fillStyle = '#d33';
   ctx.beginPath();
   ctx.ellipse(0, -8, 7, 9, 0, 0, Math.PI * 2);
   ctx.fill();
-  if (cosmetic && cosmetic.type === 'jacket' && cosmetic.drawOverlay) {
-    cosmetic.drawOverlay(ctx);
-  }
 
   // Head.
   ctx.fillStyle = '#f2c79b';
@@ -319,18 +167,9 @@ export function drawPlayer(ctx, state, cosmetic = null) {
   ctx.arc(0, -19, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Hat. Cosmetic hats replace the default blue rectangle entirely.
-  if (cosmetic && cosmetic.type === 'hat' && cosmetic.drawHat) {
-    cosmetic.drawHat(ctx);
-  } else {
-    ctx.fillStyle = '#1144aa';
-    ctx.fillRect(-5, -24, 10, 4);
-  }
-
-  // Top-of-stack accessories (sunglasses, headlamp, halo, etc).
-  if (cosmetic && cosmetic.type === 'accessory' && cosmetic.draw) {
-    cosmetic.draw(ctx);
-  }
+  // Hat.
+  ctx.fillStyle = '#1144aa';
+  ctx.fillRect(-5, -24, 10, 4);
 }
 
 function drawCrashedPlayer(ctx) {
@@ -354,8 +193,8 @@ function drawCrashedPlayer(ctx) {
   // Stars.
   ctx.fillStyle = '#ffd400';
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('★', -16, -10);
-  ctx.fillText('★', 8, -14);
+  ctx.fillText('\u2605', -16, -10);
+  ctx.fillText('\u2605', 8, -14);
 }
 
 // Squirrel critter. Faces in the direction it's running (`facing`: -1 left, +1 right).

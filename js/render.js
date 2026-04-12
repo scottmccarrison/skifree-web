@@ -2,7 +2,6 @@ import {
   drawTreeLarge, drawTreeSmall, drawMogul, drawRock, drawStump, drawJump,
   drawPlayer, drawYeti, drawSquirrel,
 } from './sprites.js';
-import { COSMETICS } from './cosmetics.js';
 import { getPreset } from './chatPresets.js';
 
 // Legend wrapper: squirrel sprite is offset upward in its own art so it
@@ -21,21 +20,18 @@ function getSpriteCanvas() {
   return _spriteCanvas;
 }
 
-function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha, cosmetic = null) {
+function drawTintedPlayerAt(ctx, screenX, screenY, state, color, alpha) {
   const sc = getSpriteCanvas();
   const sctx = sc.getContext('2d');
   sctx.clearRect(0, 0, sc.width, sc.height);
   sctx.save();
   sctx.translate(sc.width / 2, sc.height / 2);
-  drawPlayer(sctx, state, cosmetic);
+  drawPlayer(sctx, state);
   sctx.restore();
   sctx.save();
   sctx.globalCompositeOperation = 'source-atop';
   sctx.fillStyle = color;
-  // Lowered from 0.5 -> 0.35 in v0.4 phase 2 so cosmetic colors read
-  // through the team tint (e.g. white dunce cap on a blue-tinted skier
-  // stays mostly white instead of washing to half-blue).
-  sctx.globalAlpha = 0.35;
+  sctx.globalAlpha = 0.5;
   sctx.fillRect(0, 0, sc.width, sc.height);
   sctx.restore();
   ctx.save();
@@ -105,18 +101,6 @@ export function render(ctx, viewport, game) {
     const v = Math.max(150, 244 - stage * 24);
     bg = `rgb(${v}, ${v + 4}, ${v + 8})`;
   }
-  // Scene background tint: additive RGB offset on top of the banded bg.
-  // Skipped when inverted so night mode stays pure white (the invert pass
-  // would otherwise shift the inverted color).
-  if (!inverted && game.scene && game.scene.bgTint) {
-    const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (m) {
-      const r = Math.max(0, Math.min(255, parseInt(m[1], 10) + game.scene.bgTint[0]));
-      const g = Math.max(0, Math.min(255, parseInt(m[2], 10) + game.scene.bgTint[1]));
-      const b = Math.max(0, Math.min(255, parseInt(m[3], 10) + game.scene.bgTint[2]));
-      bg = `rgb(${r}, ${g}, ${b})`;
-    }
-  }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
@@ -151,7 +135,6 @@ export function render(ctx, viewport, game) {
   const camY = cameraSrc.y - viewport.h / 3;
 
   // Draw obstacles in view.
-  const palette = game.scene?.palette;
   for (const o of world.obstacles) {
     const sx = o.x - camX;
     const sy = o.y - camY;
@@ -159,7 +142,7 @@ export function render(ctx, viewport, game) {
     if (sy < -60 || sy > viewport.h + 60) continue;
     ctx.save();
     ctx.translate(sx, sy);
-    SPRITE_FNS[o.type.kind](ctx, score, palette);
+    SPRITE_FNS[o.type.kind](ctx, score);
     ctx.restore();
   }
 
@@ -199,32 +182,23 @@ export function render(ctx, viewport, game) {
     ctx.fill();
     ctx.restore();
   }
-  // Resolve the equipped cosmetic once per frame for the local player.
-  // (MP remotes still draw the base sprite for v0.4 phase 1; phase 2 will
-  // broadcast equipped via the state payload.)
-  const equippedId = game.profile?.equipped;
-  const equippedCos = equippedId ? COSMETICS[equippedId] : null;
-
   if (game.mode === 'mp') {
     const localColor = colorForIndex(game.localColor != null ? game.localColor : 0);
-    drawTintedPlayerAt(ctx, player.x - camX, player.y - camY - lift, player.state, localColor, 1.0, equippedCos);
+    drawTintedPlayerAt(ctx, player.x - camX, player.y - camY - lift, player.state, localColor, 1.0);
   } else {
     ctx.save();
     ctx.translate(player.x - camX, player.y - camY - lift);
-    drawPlayer(ctx, player.state, equippedCos);
+    drawPlayer(ctx, player.state);
     ctx.restore();
   }
 
   // Remote skiers (multiplayer): tinted translucent overlay per peer.
-  // v0.4 phase 2: each remote also broadcasts their equipped cosmetic so
-  // it renders on the tinted sprite.
   if (game.mode === 'mp' && game.remotes && game.remotes.size > 0) {
     for (const remote of game.remotes.values()) {
       const lr = lerpRemote(remote);
       const color = colorForIndex(remote.color);
       const alpha = remote.alive ? 0.55 : 0.25;
-      const remoteCos = remote.equipped ? COSMETICS[remote.equipped] : null;
-      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha, remoteCos);
+      drawTintedPlayerAt(ctx, lr.x - camX, lr.y - camY, remote.state || 'straight', color, alpha);
     }
   }
 
@@ -305,12 +279,7 @@ export function render(ctx, viewport, game) {
     ctx.textBaseline = 'alphabetic';
   }
 
-  // v0.4: achievement toast (one at a time, FIFO from updateGame).
-  if (game.toasts && game.toasts.active) {
-    drawAchievementToast(ctx, viewport, game.toasts.active);
-  }
-
-  // Spectator chat bubbles (drawn after the toast so they layer on top).
+  // Spectator chat bubbles.
   if (game.chatBubbles && game.chatBubbles.length > 0) {
     drawChatBubbles(ctx, viewport, game);
   }
@@ -341,72 +310,6 @@ export function render(ctx, viewport, game) {
     }
   }
 }
-
-// Achievement unlock toast. Slides in from the bottom-left, holds, slides
-// out. The active toast object is { name, cosmeticId, startedAt }; the
-// toast queue is advanced in updateGame so render is read-only.
-function drawAchievementToast(ctx, viewport, toast) {
-  const TOAST_DURATION = 2500;
-  const SLIDE_MS = 220;
-  const W = 280, H = 52;
-  const margin = 16;
-  const targetX = margin;
-  const targetY = viewport.h - H - margin;
-
-  const age = performance.now() - toast.startedAt;
-  if (age < 0 || age > TOAST_DURATION) return;
-
-  // Slide-in: 0..SLIDE_MS. Hold: SLIDE_MS..(TOAST_DURATION-SLIDE_MS).
-  // Slide-out: (TOAST_DURATION-SLIDE_MS)..TOAST_DURATION.
-  let xOffset;
-  if (age < SLIDE_MS) {
-    const t = age / SLIDE_MS;
-    xOffset = -W * (1 - easeOut(t));
-  } else if (age > TOAST_DURATION - SLIDE_MS) {
-    const t = (age - (TOAST_DURATION - SLIDE_MS)) / SLIDE_MS;
-    xOffset = -W * easeIn(t);
-  } else {
-    xOffset = 0;
-  }
-
-  const x = targetX + xOffset;
-  const y = targetY;
-
-  ctx.save();
-  // Panel background
-  ctx.fillStyle = 'rgba(255,255,255,0.96)';
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, W, H, 10);
-  else ctx.rect(x, y, W, H);
-  ctx.fill();
-  ctx.stroke();
-
-  // Mini player sprite preview at the right edge showing the cosmetic
-  const cos = toast.cosmeticId ? COSMETICS[toast.cosmeticId] : null;
-  ctx.save();
-  ctx.translate(x + W - 26, y + H / 2 + 8);
-  drawPlayer(ctx, 'straight', cos);
-  ctx.restore();
-
-  // Text
-  ctx.fillStyle = '#1a1a1a';
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
-  ctx.fillText('Achievement Unlocked', x + 14, y + 18);
-  ctx.font = '12px -apple-system, system-ui, sans-serif';
-  ctx.fillText(toast.name, x + 14, y + 35);
-  if (cos) {
-    ctx.fillStyle = '#555';
-    ctx.font = 'italic 10px -apple-system, system-ui, sans-serif';
-    ctx.fillText(`+ ${cos.name}`, x + 14, y + 47);
-  }
-
-  ctx.restore();
-}
-function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-function easeIn(t)  { return Math.pow(t, 3); }
 
 // Spectator chat bubbles: anchored to the sender's roster row on the
 // left HUD. The roster draw stashes per-peer (x, y, rowH) into
